@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
 import { runDraftEngine, constructSystemPrompt } from '../lib/ai/draftEngine';
-import { calculateTokenBudget, getModelContextLimit, estimateTokens } from '../lib/ai/tokenManager';
+import { calculateTokenBudget } from '../lib/ai/tokenManager';
 import { PrimaryButton, GlassCard } from './ui/GlassComponents';
 import { DraftingState, DraftMode, AIProvider, DraftHistoryItem } from '../types';
 import { SettingsModal } from './SettingsModal';
@@ -145,13 +145,15 @@ export const Workspace = () => {
         ? config.geminiModel
         : activeProfile?.model || 'gpt-4o';
 
-    const budget = calculateTokenBudget(systemPrompt, vaultText, prompt, activeModelName);
-    const maxLimit = getModelContextLimit(activeModelName);
-    const rawTokens = estimateTokens(vaultText);
+    const budget = calculateTokenBudget(
+      systemPrompt,
+      vaultText,
+      prompt,
+      activeModelName,
+      config.forceSmartRetrieval
+    );
 
-    const shouldRetrieve = config.forceSmartRetrieval || rawTokens > maxLimit * 0.6;
-
-    return { tokenBudget: budget, isRetrievalActive: shouldRetrieve };
+    return { tokenBudget: budget, isRetrievalActive: budget.isRAGActive };
   }, [
     getFullContextString,
     config.customSystemPrompt,
@@ -217,8 +219,9 @@ export const Workspace = () => {
     let completeOutput = '';
 
     try {
+      const optimalChunks = tokenBudget.optimalChunkCount || 25;
       const context = isRetrievalActive
-        ? await getRetrievedContextString(prompt, 15)
+        ? await getRetrievedContextString(prompt, optimalChunks)
         : getFullContextString();
 
       const effectiveProfile = activeProfile
@@ -562,11 +565,15 @@ export const Workspace = () => {
           </div>
 
           {/* Context Token Budget Meter */}
-          <div className="space-y-1.5 p-3 rounded-xl bg-white/5 border border-white/5">
+          <div className="space-y-2 p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center justify-between text-[11px] font-mono">
               <span className="text-gray-400 flex items-center gap-1.5">
-                {tokenBudget.status === 'critical' && <AlertTriangle className="w-3 h-3 text-red-400" />}
-                Context Budget
+                {tokenBudget.status === 'critical' ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                ) : (
+                  <Zap className={`w-3.5 h-3.5 ${isRetrievalActive ? 'text-blue-400' : 'text-cyberLime'}`} />
+                )}
+                <span>Injected Context</span>
               </span>
               <span
                 className={
@@ -577,12 +584,15 @@ export const Workspace = () => {
                     : 'text-cyberLime'
                 }
               >
-                {tokenBudget.estimatedTokens.toLocaleString()} /{' '}
+                ~{tokenBudget.injectedTokens.toLocaleString()} /{' '}
                 {tokenBudget.maxContextTokens >= 1000000
                   ? `${Math.round(tokenBudget.maxContextTokens / 1000000)}M`
-                  : `${Math.round(tokenBudget.maxContextTokens / 1024)}k`}
+                  : `${Math.round(tokenBudget.maxContextTokens / 1024)}k`}{' '}
+                ({tokenBudget.usagePercentage}%)
               </span>
             </div>
+
+            {/* Progress bar */}
             <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
@@ -590,11 +600,42 @@ export const Workspace = () => {
                     ? 'bg-red-500'
                     : tokenBudget.status === 'warning'
                     ? 'bg-yellow-400'
+                    : isRetrievalActive
+                    ? 'bg-blue-400'
                     : 'bg-cyberLime'
                 }`}
                 style={{ width: `${Math.min(100, tokenBudget.usagePercentage)}%` }}
               />
             </div>
+
+            {/* Context Subtitle / Explanation */}
+            <div className="flex items-center justify-between text-[10px] text-gray-400 pt-0.5">
+              <span>
+                Vault Total: <strong className="text-gray-300">{tokenBudget.rawVaultTokens.toLocaleString()}</strong> tokens
+              </span>
+              {isRetrievalActive ? (
+                <span className="text-blue-400 font-mono">
+                  BM25: Top-{tokenBudget.optimalChunkCount} chunks
+                </span>
+              ) : (
+                <span className="text-cyberLime font-mono">100% Full Text</span>
+              )}
+            </div>
+
+            {/* 1-Click Gemini 1M Switcher button if vault exceeds model limit */}
+            {tokenBudget.canSwitchToGemini && (
+              <button
+                type="button"
+                onClick={() => {
+                  updateConfig({ aiProvider: AIProvider.GEMINI_DIRECT });
+                  addToast('Switched to Gemini Direct (1 Million token window)!', 'success');
+                }}
+                className="w-full mt-1.5 py-1.5 px-2.5 rounded-lg bg-cyberLime/10 hover:bg-cyberLime/20 border border-cyberLime/30 text-cyberLime text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all shadow-[0_0_10px_rgba(132,249,6,0.1)]"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Switch to Gemini 2.5 Flash (1M Window) for Full Ingestion</span>
+              </button>
+            )}
           </div>
 
           {/* Prompt Input */}

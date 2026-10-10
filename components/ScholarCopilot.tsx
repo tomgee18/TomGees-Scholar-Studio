@@ -20,6 +20,7 @@ import { AIProvider, ChatMessage, OpenAIProfile } from '../types';
 import { routeAIRequest } from '../lib/ai/aiRouter';
 import { db } from '../lib/db';
 import { MarkdownRenderer } from './ui/MarkdownRenderer';
+import { getModelContextLimit, getOptimalChunkCount } from '../lib/ai/tokenManager';
 
 interface ScholarCopilotProps {
   isOpen: boolean;
@@ -179,7 +180,12 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
     // Step 2: Vault BM25 Retrieval
     if (searchVault && documents.some((d) => d.enabled !== false)) {
       try {
-        const retrieved = await getRetrievedContextString(prompt, 8);
+        const targetModelName =
+          chatProvider === AIProvider.GEMINI_DIRECT
+            ? config.geminiModel
+            : (config.profiles.find((p) => p.id === chatProfileId) || activeProfile)?.model || 'default-model';
+        const dynamicChunks = getOptimalChunkCount(getModelContextLimit(targetModelName));
+        const retrieved = await getRetrievedContextString(prompt, dynamicChunks);
         if (retrieved.trim()) {
           contextBlock += `\n\n=== RETRIEVED VAULT SOURCES ===\n${retrieved}\n=== END VAULT SOURCES ===\n`;
           sourcesUsed.push(...documents.filter((d) => d.enabled !== false).map((d) => d.name));
