@@ -15,6 +15,7 @@ import {
   History,
   AlertTriangle,
   Zap,
+  HelpCircle,
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
 import { runDraftEngine, constructSystemPrompt } from '../lib/ai/draftEngine';
@@ -27,6 +28,7 @@ import { MarkdownRenderer } from './ui/MarkdownRenderer';
 import { SocraticQuizPanel } from './SocraticQuizPanel';
 import { ExportHubModal } from './ExportHubModal';
 import { ScholarCopilot } from './ScholarCopilot';
+import { HelpModal } from './HelpModal';
 import { useToast } from '../context/ToastContext';
 
 export const Workspace = () => {
@@ -47,6 +49,7 @@ export const Workspace = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isExportHubOpen, setIsExportHubOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [latestExaminerReport, setLatestExaminerReport] = useState('');
 
@@ -59,13 +62,41 @@ export const Workspace = () => {
   const outputContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMounted = useRef(true);
+  const handleGenerateRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     isMounted.current = true;
     const handleKeyDown = (e: KeyboardEvent) => {
+      // F1 for Help Manual
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setIsHelpOpen((prev) => !prev);
+        return;
+      }
+
+      // Alt + C for Copilot
       if (e.altKey && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
         setIsCopilotOpen((prev) => !prev);
+        return;
+      }
+
+      // Esc closes open overlays
+      if (e.key === 'Escape') {
+        setIsHelpOpen(false);
+        setIsSettingsOpen(false);
+        setIsHistoryOpen(false);
+        setIsExportHubOpen(false);
+        setIsCopilotOpen(false);
+        return;
+      }
+
+      // Ctrl/Cmd + Enter triggers generation
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (!state.isGenerating && prompt.trim()) {
+          e.preventDefault();
+          handleGenerateRef.current();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -73,7 +104,7 @@ export const Workspace = () => {
       isMounted.current = false;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [state.isGenerating, prompt]);
 
   const handleInsertAtCursor = (text: string) => {
     setState((prev) => ({
@@ -260,6 +291,7 @@ export const Workspace = () => {
       }
     }
   };
+  handleGenerateRef.current = handleGenerate;
 
   const handleCopy = async () => {
     if (!state.output) return;
@@ -321,6 +353,7 @@ export const Workspace = () => {
         onInsertAtCursor={handleInsertAtCursor}
         onAppendToDraft={handleAppendToDraft}
       />
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
       {/* Ambient background glow */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0 print:hidden">
@@ -338,6 +371,22 @@ export const Workspace = () => {
         </div>
 
         <div className="flex gap-3 items-center">
+          <button
+            onClick={() => setIsHelpOpen((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all border ${
+              isHelpOpen
+                ? 'bg-cyberLime/20 text-cyberLime border-cyberLime/40 shadow-[0_0_12px_rgba(132,249,6,0.2)]'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/5'
+            }`}
+            title="Help Manual & Shortcuts (F1)"
+          >
+            <HelpCircle className="w-4 h-4 text-cyberLime" />
+            <span>Help</span>
+            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400 font-mono hidden sm:inline">
+              F1
+            </span>
+          </button>
+
           <button
             onClick={() => setIsCopilotOpen((prev) => !prev)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all border ${
@@ -385,6 +434,7 @@ export const Workspace = () => {
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Open Settings"
           >
             <Settings className="w-5 h-5" />
           </button>
