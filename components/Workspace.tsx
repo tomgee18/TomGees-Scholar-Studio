@@ -26,6 +26,7 @@ import { DraftHistoryDrawer } from './DraftHistoryDrawer';
 import { MarkdownRenderer } from './ui/MarkdownRenderer';
 import { SocraticQuizPanel } from './SocraticQuizPanel';
 import { ExportHubModal } from './ExportHubModal';
+import { ScholarCopilot } from './ScholarCopilot';
 import { useToast } from '../context/ToastContext';
 
 export const Workspace = () => {
@@ -45,6 +46,7 @@ export const Workspace = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isExportHubOpen, setIsExportHubOpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [latestExaminerReport, setLatestExaminerReport] = useState('');
 
@@ -60,10 +62,34 @@ export const Workspace = () => {
 
   useEffect(() => {
     isMounted.current = true;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        setIsCopilotOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
       isMounted.current = false;
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  const handleInsertAtCursor = (text: string) => {
+    setState((prev) => ({
+      ...prev,
+      output: prev.output ? `${prev.output}\n\n${text}` : text,
+    }));
+    addToast('Inserted into draft', 'success');
+  };
+
+  const handleAppendToDraft = (text: string) => {
+    setState((prev) => ({
+      ...prev,
+      output: prev.output ? `${prev.output}\n\n${text}` : text,
+    }));
+    addToast('Appended to draft', 'success');
+  };
 
   useEffect(() => {
     if (state.isGenerating && outputContainerRef.current) {
@@ -288,6 +314,13 @@ export const Workspace = () => {
         examinerReport={latestExaminerReport}
         selectedMode={selectedMode}
       />
+      <ScholarCopilot
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        activeDraftText={state.output}
+        onInsertAtCursor={handleInsertAtCursor}
+        onAppendToDraft={handleAppendToDraft}
+      />
 
       {/* Ambient background glow */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0 print:hidden">
@@ -305,6 +338,22 @@ export const Workspace = () => {
         </div>
 
         <div className="flex gap-3 items-center">
+          <button
+            onClick={() => setIsCopilotOpen((prev) => !prev)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all border ${
+              isCopilotOpen
+                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-[0_0_12px_rgba(99,102,241,0.25)]'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 border-white/5'
+            }`}
+            title="Toggle Scholar Copilot (Alt+C)"
+          >
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+            <span>Copilot</span>
+            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-gray-400 hidden sm:inline">
+              Alt+C
+            </span>
+          </button>
+
           <button
             onClick={() => setIsHistoryOpen(true)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-gray-300 transition-colors border border-white/5"

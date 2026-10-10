@@ -1,12 +1,13 @@
-import { AIProvider, OpenAIProfile } from '../../types';
+import { AIProvider, OpenAIProfile, AIMessage } from '../../types';
 import { generateOpenAICompatible } from './openAICompatibleProvider';
 import { generateGeminiDirect } from './geminiProvider';
 
 interface RouterParams {
   provider: AIProvider;
   activeProfile?: OpenAIProfile;
-  systemPrompt: string;
-  userPrompt: string;
+  systemPrompt?: string;
+  userPrompt?: string;
+  messages?: AIMessage[];
   config: {
     geminiApiKey: string;
     geminiModel: string;
@@ -16,7 +17,14 @@ interface RouterParams {
 }
 
 export const routeAIRequest = async (params: RouterParams) => {
-  const { provider, activeProfile, systemPrompt, userPrompt, config, onChunk, signal } = params;
+  const { provider, activeProfile, systemPrompt, userPrompt, messages, config, onChunk, signal } = params;
+
+  const resolvedMessages: AIMessage[] = messages
+    ? messages
+    : [
+        ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+        ...(userPrompt ? [{ role: 'user' as const, content: userPrompt }] : []),
+      ];
 
   if (provider === AIProvider.GEMINI_DIRECT) {
     await generateGeminiDirect({
@@ -24,6 +32,7 @@ export const routeAIRequest = async (params: RouterParams) => {
       model: config.geminiModel,
       systemInstruction: systemPrompt,
       prompt: userPrompt,
+      messages: resolvedMessages,
       onChunk,
       signal,
     });
@@ -36,10 +45,7 @@ export const routeAIRequest = async (params: RouterParams) => {
       baseUrl: activeProfile.baseUrl,
       apiKey: activeProfile.apiKey,
       model: activeProfile.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+      messages: resolvedMessages,
       onChunk,
       signal,
     });

@@ -4,7 +4,8 @@ export interface GeminiParams {
   apiKey: string;
   model: string;
   systemInstruction?: string;
-  prompt: string;
+  prompt?: string;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
   onChunk: (text: string) => void;
   signal?: AbortSignal;
 }
@@ -43,6 +44,7 @@ export const generateGeminiDirect = async ({
   model,
   systemInstruction,
   prompt,
+  messages,
   onChunk,
   signal,
 }: GeminiParams): Promise<void> => {
@@ -54,11 +56,29 @@ export const generateGeminiDirect = async ({
   const targetModel = model || 'gemini-2.5-flash';
 
   try {
+    let contentsPayload: any = prompt || '';
+    let resolvedSystemInstruction = systemInstruction;
+
+    if (messages && messages.length > 0) {
+      const chatMessages = messages.filter((m) => {
+        if (m.role === 'system') {
+          resolvedSystemInstruction = (resolvedSystemInstruction ? resolvedSystemInstruction + '\n\n' : '') + m.content;
+          return false;
+        }
+        return true;
+      });
+
+      contentsPayload = chatMessages.map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+    }
+
     const responseStream = await ai.models.generateContentStream({
       model: targetModel,
-      contents: prompt,
+      contents: contentsPayload,
       config: {
-        systemInstruction: systemInstruction || undefined,
+        systemInstruction: resolvedSystemInstruction || undefined,
       },
     });
 

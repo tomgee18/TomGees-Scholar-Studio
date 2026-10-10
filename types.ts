@@ -59,6 +59,22 @@ export interface DraftingState {
   error: string | null;
 }
 
+export interface AIMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  sources?: string[];
+  modelUsed?: string;
+  providerUsed?: AIProvider;
+}
+
 export interface AppConfig {
   aiProvider: AIProvider;
   activeProfileId: string;
