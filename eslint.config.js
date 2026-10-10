@@ -22,6 +22,6 @@ export default [
     },
   },
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.mjs'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.mjs', 'src-tauri/target/**', 'src-tauri/gen/**'],
   },
 ];

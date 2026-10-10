@@ -11,6 +11,7 @@ import {
 import { parseFile } from '../lib/parsers/index';
 import { chunkDocumentText, retrieveTopKChunks } from '../lib/ai/retrievalEngine';
 import { db } from '../lib/db';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 
 interface ContextStoreType {
   documents: DocumentContext[];
@@ -80,7 +81,19 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
   useEffect(() => {
     const initializeStore = async () => {
       try {
-        const envMap = getSystemEnvMap();
+        let envMap = getSystemEnvMap();
+
+        if (isTauri()) {
+          try {
+            const tauriEnv = await invoke<Record<string, string>>('get_system_env_vars');
+            if (tauriEnv && Object.keys(tauriEnv).length > 0) {
+              envMap = { ...envMap, ...tauriEnv };
+              (window as any).__SYSTEM_ENV__ = envMap;
+            }
+          } catch (tErr) {
+            console.warn('Tauri host environment check skipped:', tErr);
+          }
+        }
 
         const savedConfig = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
         if (savedConfig) {
