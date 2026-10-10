@@ -1,21 +1,56 @@
-
 export interface DocumentContext {
   id: string;
   name: string;
   type: 'pdf' | 'txt' | 'md';
   content: string;
   timestamp: number;
+  sizeBytes: number;
+  enabled?: boolean;
+}
+
+export interface DocumentChunk {
+  id: string;
+  documentId: string;
+  docName: string;
+  chunkIndex: number;
+  content: string;
+  wordCount: number;
+}
+
+export interface DraftHistoryItem {
+  id: string;
+  title: string;
+  mode: DraftMode;
+  prompt: string;
+  output: string;
+  provider: AIProvider;
+  profileName?: string;
+  model: string;
+  timestamp: number;
+  wordCount: number;
+  sourcesUsed: string[];
 }
 
 export enum AIProvider {
-  OPENROUTER_CLOUD = 'OPENROUTER_CLOUD',
-  OLLAMA_LOCAL = 'OLLAMA_LOCAL'
+  OPENAI_COMPATIBLE = 'OPENAI_COMPATIBLE',
+  GEMINI_DIRECT = 'GEMINI_DIRECT',
+}
+
+export interface OpenAIProfile {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  envKeyName?: string;
+  model: string;
+  isPreset?: boolean;
 }
 
 export enum DraftMode {
   THESIS = 'THESIS',
-  BUSINESS = 'BUSINESS',
-  CUSTOM = 'CUSTOM'
+  EXAM_MASTERY = 'EXAM_MASTERY',
+  LIT_REVIEW = 'LIT_REVIEW',
+  CUSTOM = 'CUSTOM',
 }
 
 export interface DraftingState {
@@ -24,29 +59,75 @@ export interface DraftingState {
   error: string | null;
 }
 
-export interface OllamaModel {
-  name: string;
-  size: number;
-  digest: string;
-  details: {
-    parameter_size: string;
-    quantization_level: string;
-    family: string;
-  };
-}
-
 export interface AppConfig {
   aiProvider: AIProvider;
-  ollamaEndpoint: string;
-  ollamaModel: string;
-  openRouterApiKey: string;
-  openRouterModel: string;
+  activeProfileId: string;
+  profiles: OpenAIProfile[];
+  geminiApiKey: string;
+  geminiModel: string;
   customSystemPrompt: string;
   webAccessEnabled: boolean;
+  forceSmartRetrieval?: boolean;
 }
 
-export const DEFAULT_SYSTEM_PROMPT = `You are the "TomGees-Scholar-Studio" Intelligence Engine. 
-Your mission is to provide high-level drafting assistance. 
-You function as a Senior Software Architect and Academic Research Assistant.
+export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKey: '',
+    envKeyName: 'DEEPSEEK_API_KEY',
+    model: 'deepseek-chat',
+    isPreset: true,
+  },
+  {
+    id: 'groq',
+    name: 'Groq Cloud',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    apiKey: '',
+    envKeyName: 'GROQ_API_KEY',
+    model: 'llama-3.3-70b-versatile',
+    isPreset: true,
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    apiKey: '',
+    envKeyName: 'OPENROUTER_API_KEY',
+    model: 'google/gemini-2.0-flash-001',
+    isPreset: true,
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama Local',
+    baseUrl: 'http://localhost:11434/v1',
+    apiKey: 'ollama',
+    envKeyName: 'OLLAMA_API_KEY',
+    model: 'llama3',
+    isPreset: true,
+  },
+  {
+    id: 'lmstudio',
+    name: 'LM Studio / Local Server',
+    baseUrl: 'http://localhost:1234/v1',
+    apiKey: 'not-needed',
+    model: 'local-model',
+    isPreset: true,
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI Official',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: '',
+    envKeyName: 'OPENAI_API_KEY',
+    model: 'gpt-4o',
+    isPreset: true,
+  },
+];
+
+export const DEFAULT_SYSTEM_PROMPT = `You are the "TomGees-Scholar-Studio" Advanced Intelligence Engine. 
+Your mission is to provide graduate-level scholarship and rigorous exam preparation assistance. 
+You function as a Senior Academic Scholar, Principal Investigator, and Graduate Examiner.
 Always prioritize the Context Vault (user provided files) over general knowledge.
-Output must be Markdown-optimized.`;
+Output must be structured Markdown with tables and clear rubrics.`;

@@ -1,5 +1,4 @@
-
-import { DraftMode, AIProvider } from '../../types';
+import { DraftMode, AIProvider, OpenAIProfile } from '../../types';
 import { routeAIRequest } from './aiRouter';
 
 interface EngineParams {
@@ -8,10 +7,9 @@ interface EngineParams {
   contextData: string;
   config: {
     provider: AIProvider;
-    ollamaEndpoint: string;
-    ollamaModel: string;
-    openRouterApiKey: string;
-    openRouterModel: string;
+    activeProfile?: OpenAIProfile;
+    geminiApiKey: string;
+    geminiModel: string;
     customSystemPrompt: string;
     webAccessEnabled: boolean;
   };
@@ -24,78 +22,116 @@ const THESIS_STRUCTURE = `
 1. Chapter 1: Introduction
    - Background of Study
    - Statement of Problem
-   - Research Objectives
+   - Research Questions & Hypotheses
 2. Chapter 2: Literature Review
-   - Synthesize provided context into thematic sections.
-   - Use TABLES to compare different theories or studies if applicable.
+   - Thematic synthesis of Vault context.
+   - Comparative Markdown TABLES evaluating competing theoretical frameworks.
 3. Chapter 3: Methodology
+   - Research design, sampling, analytical instruments.
 4. Chapter 4: Results & Discussion
-   - Present data/findings clearly.
-5. Chapter 5: Conclusion
+   - Critical data presentation with formal academic argumentation.
+5. Chapter 5: Conclusion & Recommendations
 `;
 
-const BUSINESS_STRUCTURE = `
-[STRICT BUSINESS PLAN FORMAT]
-1. Executive Summary
-2. Company Description
-3. Market Analysis (Include Competitor Comparison Table)
-4. Operational Plan
-5. Financial Projections
-   - MUST use Markdown Tables for: Startup Costs, Revenue Forecast, Profit/Loss.
-   - Use clear headers for all financial data.
-6. SWOT Analysis
+const EXAM_MASTERY_STRUCTURE = `
+[STRICT EXAM PREPARATION & MASTERY KIT]
+Produce an exhaustive, graduate-level revision & examination suite:
+
+1. SECTION 1: High-Yield Core Concept Synthesis
+   - Summarize the top 20% most critical theorems, equations, models, or legal/empirical frameworks.
+   - Use Markdown TABLES mapping: [Concept / Theorem | Key Mechanism | Exam Significance].
+
+2. SECTION 2: Master Mock Examination
+   - PART A: Conceptual Precision Questions (Short-answer, definitional testing).
+   - PART B: Applied & Case-Based Analytical Problems (Complex scenarios requiring multi-step synthesis).
+   - PART C: Comprehensive Essay / Long-Form Prompts (Challenging exam prompts testing synthesis).
+
+3. SECTION 3: Official Marking Scheme & Exemplar Answers
+   - Detailed point-by-point marking rubric (allocation of marks per step).
+   - Exemplar top-tier model answers for every question above.
+
+4. SECTION 4: Common Pitfalls & High-Frequency Exam Traps
+   - Contrast subtle misconceptions that cost students top marks.
+   - Table: [Common Student Mistake | Why It Loses Marks | Correct Interpretation].
+
+5. SECTION 5: Active Recall Self-Testing Prompts
+   - 10 targeted retrieval questions formulated for active recall revision.
 `;
 
-export const runDraftEngine = async (params: EngineParams) => {
-  const { mode, userDirective, contextData, config, onChunk, signal } = params;
+const LIT_REVIEW_STRUCTURE = `
+[STRICT LITERATURE REVIEW & META-SYNTHESIS]
+Synthesize the provided Context Vault literature into a rigorous, publication-ready review:
 
-  // 1. Construct System Identity
-  let modeInstruction = "";
-  if (mode === DraftMode.THESIS) {
-    modeInstruction = `MODE: THESIS GENERATION. You are a PhD Research Assistant. Maintain rigorous academic tone. Synthesize context into formal chapters.\n${THESIS_STRUCTURE}`;
-  } else if (mode === DraftMode.BUSINESS) {
-    modeInstruction = `MODE: BUSINESS PLAN. You are a Corporate Strategist. Maintain investor-grade clarity. Focus on viability and financial structure.\n${BUSINESS_STRUCTURE}`;
-  } else {
-    modeInstruction = "MODE: CUSTOM DRAFTING. Follow user directives precisely while grounding in context.";
-  }
+1. Theoretical Framework & Conceptual Foundations
+   - Core paradigms and overarching epistemological traditions.
+2. Thematic Matrix of Literature
+   - MUST construct a comprehensive Markdown Comparison Matrix:
+     | Author / Source | Core Methodology | Primary Finding | Limitations | Contribution |
+3. Critical Methodological Review
+   - Comparative strengths and vulnerabilities across studies.
+4. Points of Scholarly Consensus vs. Empirical Contradictions
+   - Where the literature aligns vs. contested debates.
+5. Identified Gaps & Agenda for Future Research
+   - Unanswered questions, blind spots, and proposed future directions.
+`;
 
-  // 2. OER Augmentation Logic
-  let webInstruction = "";
-  if (config.webAccessEnabled) {
+export const constructSystemPrompt = (
+  customSystemPrompt: string,
+  mode: DraftMode,
+  webAccessEnabled: boolean,
+  contextData: string
+): string => {
+  const modeInstruction =
+    mode === DraftMode.THESIS
+      ? `MODE: THESIS & DISSERTATION. You are a PhD Research Advisor. Maintain rigorous academic prose and formal chapters.\n${THESIS_STRUCTURE}`
+      : mode === DraftMode.EXAM_MASTERY
+      ? `MODE: EXAM & MASTERY PREPARATION. You are a University Chief Examiner and Distinguished Professor. Produce a high-yield study and mock exam suite designed for maximum mastery.\n${EXAM_MASTERY_STRUCTURE}`
+      : mode === DraftMode.LIT_REVIEW
+      ? `MODE: LITERATURE REVIEW & META-SYNTHESIS. You are a Principal Research Fellow. Synthesize cross-paper consensus, methodological differences, and research gaps.\n${LIT_REVIEW_STRUCTURE}`
+      : 'MODE: CUSTOM SCHOLAR DRAFTING. Follow user directives with meticulous precision while anchoring strictly in context.';
+
+  let webInstruction = '';
+  if (webAccessEnabled) {
     webInstruction = `
-[WEB ACCESS: ENABLED]
-You have been granted access to Open Educational Resources (OER) logic.
-- If your model architecture supports native web search (e.g., Perplexity, Gemini, Google Search), ACTIVELY SEARCH for recent academic papers, OER textbooks (OpenStax, MIT OCW), and reputable open-access journals to supplement the user's Context Vault.
-- If you do not have native search, simulate this by prioritizing your internal knowledge base for "open access", "creative commons", and "public domain" educational content.
-- CITATION REQUIREMENT: When using external OER knowledge, explicitly mention the source type (e.g., "Based on general open academic consensus...").
+[WEB ACCESS & OPEN SCHOLARSHIP: ENABLED]
+- Prioritize Open Educational Resources (OER) such as OpenStax, MIT OpenCourseWare, arXiv, bioRxiv, and peer-reviewed journals.
+- Explicitly cite source methodologies and reference materials.
 `;
   }
 
-  // 3. Assemble Final System Prompt
-  const finalSystemPrompt = `
-${config.customSystemPrompt}
+  return `
+${customSystemPrompt}
 
 ${modeInstruction}
 
 ${webInstruction}
 
 --- CONTEXT VAULT DATA ---
-${contextData || "No local documents provided. Rely on mode instructions and internal knowledge."}
+${contextData || 'No local documents provided. Rely on mode instructions and internal knowledge base.'}
 --------------------------
-`;
+`.trim();
+};
 
-  // 4. Route Request
+export const runDraftEngine = async (params: EngineParams) => {
+  const { mode, userDirective, contextData, config, onChunk, signal } = params;
+
+  const finalSystemPrompt = constructSystemPrompt(
+    config.customSystemPrompt,
+    mode,
+    config.webAccessEnabled,
+    contextData
+  );
+
   await routeAIRequest({
     provider: config.provider,
+    activeProfile: config.activeProfile,
     systemPrompt: finalSystemPrompt,
     userPrompt: userDirective,
     config: {
-      ollamaEndpoint: config.ollamaEndpoint,
-      ollamaModel: config.ollamaModel,
-      openRouterApiKey: config.openRouterApiKey,
-      openRouterModel: config.openRouterModel
+      geminiApiKey: config.geminiApiKey,
+      geminiModel: config.geminiModel,
     },
     onChunk,
-    signal
+    signal,
   });
 };

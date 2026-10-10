@@ -1,24 +1,37 @@
-# Logs
-logs
-*.log
+# Node & Package Manager
+node_modules/
+package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
+.pnpm-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Build artifacts
+dist/
+dist-ssr/
 *.local
 
-# Editor directories and files
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE & OS files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Testing coverage & cache
+coverage/
+.vitest/
+
+# Tauri build artifacts (for Phase 2)
+src-tauri/target/

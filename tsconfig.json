@@ -9,9 +9,13 @@
       "DOM",
       "DOM.Iterable"
     ],
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
@@ -25,5 +29,13 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "components",
+    "context",
+    "lib",
+    "*.ts",
+    "*.tsx"
+  ]
 }

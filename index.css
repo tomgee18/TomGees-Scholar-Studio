@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  --color-obsidian: #050505;
+  --color-cyberLime: #84f906;
+  --color-deepViolet: #a855f7;
+
+  --shadow-glow-lime: 0 0 15px rgba(132, 249, 6, 0.3);
+  --shadow-glow-violet: 0 0 20px rgba(168, 85, 247, 0.2);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background-color: #050505;
+  color: #e5e5e5;
+  font-family: var(--font-sans);
+}
+
+/* Custom Scrollbar for Glass UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Print-to-PDF Professional Typography */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-family: 'Times New Roman', Times, serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page {
+    margin: 2.5cm 2cm;
+  }
+}

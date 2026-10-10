@@ -1,49 +1,49 @@
-import { AIProvider } from '../../types';
-import { generateOllama } from './ollamaProvider';
-import { generateOpenRouter } from './openRouterProvider';
+import { AIProvider, OpenAIProfile } from '../../types';
+import { generateOpenAICompatible } from './openAICompatibleProvider';
+import { generateGeminiDirect } from './geminiProvider';
 
 interface RouterParams {
   provider: AIProvider;
+  activeProfile?: OpenAIProfile;
   systemPrompt: string;
   userPrompt: string;
   config: {
-    ollamaEndpoint: string;
-    ollamaModel: string;
-    openRouterApiKey: string;
-    openRouterModel: string;
+    geminiApiKey: string;
+    geminiModel: string;
   };
   onChunk: (text: string) => void;
   signal?: AbortSignal;
 }
 
 export const routeAIRequest = async (params: RouterParams) => {
-  const { provider, systemPrompt, userPrompt, config, onChunk, signal } = params;
+  const { provider, activeProfile, systemPrompt, userPrompt, config, onChunk, signal } = params;
 
-  if (provider === AIProvider.OPENROUTER_CLOUD) {
-    // Cloud Logic
-    await generateOpenRouter({
-      apiKey: config.openRouterApiKey,
-      model: config.openRouterModel,
+  if (provider === AIProvider.GEMINI_DIRECT) {
+    await generateGeminiDirect({
+      apiKey: config.geminiApiKey,
+      model: config.geminiModel,
+      systemInstruction: systemPrompt,
+      prompt: userPrompt,
+      onChunk,
+      signal,
+    });
+  } else if (provider === AIProvider.OPENAI_COMPATIBLE) {
+    if (!activeProfile) {
+      throw new Error('No active OpenAI profile configured. Check Settings.');
+    }
+
+    await generateOpenAICompatible({
+      baseUrl: activeProfile.baseUrl,
+      apiKey: activeProfile.apiKey,
+      model: activeProfile.model,
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
       ],
       onChunk,
-      signal
-    });
-  } else if (provider === AIProvider.OLLAMA_LOCAL) {
-    // Local Logic - Combine system and user prompt for basic completion models if needed, 
-    // but assuming chat/generate endpoint, we structure the prompt.
-    const fullPrompt = `${systemPrompt}\n\nUSER DIRECTIVE:\n${userPrompt}`;
-    
-    await generateOllama({
-      endpoint: config.ollamaEndpoint,
-      model: config.ollamaModel,
-      prompt: fullPrompt,
-      onChunk,
-      signal
+      signal,
     });
   } else {
-    throw new Error("Invalid AI Provider");
+    throw new Error(`Invalid AI Provider: ${provider}`);
   }
 };
