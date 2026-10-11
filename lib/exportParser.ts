@@ -144,16 +144,29 @@ export const downloadTextFile = (content: string, filename: string, mimeType = '
 };
 
 /**
- * Opens a dedicated print dialog for a specific snippet
+ * Opens a dedicated print dialog for a specific snippet using a hidden iframe.
+ * Avoids window.open popup blockers in both desktop webviews (Tauri/WebView2) and browsers.
  */
 export const printSnippetToPdf = (title: string, markdownContent: string) => {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Pop-up blocked. Please allow pop-ups to print this document.');
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
+  iframe.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow?.document;
+  if (!doc) {
+    window.print();
+    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
     return;
   }
 
-  printWindow.document.write(`
+  doc.open();
+  doc.write(`
     <!DOCTYPE html>
     <html>
       <head>
@@ -171,7 +184,7 @@ export const printSnippetToPdf = (title: string, markdownContent: string) => {
           table { width: 100%; border-collapse: collapse; margin: 20px 0; }
           th, td { border: 1px solid #333; padding: 8px; text-align: left; }
           th { background: #f2f2f2; }
-          pre { background: #f8f8f8; padding: 10px; border-radius: 4px; }
+          pre { background: #f8f8f8; padding: 10px; border-radius: 4px; white-space: pre-wrap; }
           @media print {
             body { padding: 0; }
             @page { margin: 2cm; }
@@ -184,14 +197,24 @@ export const printSnippetToPdf = (title: string, markdownContent: string) => {
           <div style="font-size: 12px; color: #555;">${title} • Generated on ${new Date().toLocaleDateString()}</div>
         </div>
         <div id="content" style="white-space: pre-wrap; font-family: 'Times New Roman', serif;">${markdownContent}</div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          };
-        </script>
       </body>
     </html>
   `);
-  printWindow.document.close();
+  doc.close();
+
+  setTimeout(() => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } catch (err) {
+      console.warn('Iframe print failed, falling back to window.print():', err);
+      window.print();
+    } finally {
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      }, 1000);
+    }
+  }, 250);
 };
