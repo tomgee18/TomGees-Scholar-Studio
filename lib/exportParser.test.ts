@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractExportSections } from './exportParser';
+import { extractExportSections, markdownToPrintHtml } from './exportParser';
 
 describe('exportParser', () => {
   const sampleCompositeStudyKit = `
@@ -51,5 +51,41 @@ Answer: Because boundary conditions constrain the permitted de Broglie wavelengt
     expect(sections.ankiDeckText).toContain('#separator:tab');
     expect(sections.ankiDeckText).toContain('ScholarStudio');
     expect(sections.ankiDeckText).toContain('probability density');
+  });
+
+  it('transforms raw markdown into rich semantic HTML for print/PDF export', () => {
+    const testMarkdown = `
+# Quantum Superposition
+This is a **critical** principle of *quantum mechanics*.
+
+> Observation collapses the wave function.
+
+| Concept | Formulation | Status |
+| :--- | :--- | :--- |
+| Wave Function | $\\Psi(x,t)$ | Validated |
+
+- Superposition principle
+- Entanglement
+
+\`\`\`python
+def calculate_psi():
+    return 1.0
+\`\`\`
+`;
+
+    const html = markdownToPrintHtml(testMarkdown);
+
+    // Verifies conversion from markdown syntax to rich HTML elements
+    expect(html).toContain('<h1>Quantum Superposition</h1>');
+    expect(html).toContain('<strong>critical</strong>');
+    expect(html).toContain('<em>quantum mechanics</em>');
+    expect(html).toContain('<blockquote>');
+    expect(html).toContain('<table>');
+    expect(html).toContain('>Concept</th>');
+    expect(html).toContain('>Wave Function</td>');
+    expect(html).toContain('<ul>');
+    expect(html).toContain('<li>Superposition principle</li>');
+    expect(html).toContain('<pre><code class="language-python">');
+    expect(html).toContain('calculate_psi');
   });
 });

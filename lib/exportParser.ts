@@ -1,3 +1,8 @@
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 export interface ParsedSections {
   fullText: string;
   examPaper?: string;
@@ -144,10 +149,29 @@ export const downloadTextFile = (content: string, filename: string, mimeType = '
 };
 
 /**
+ * Converts markdown text into semantic, accessible HTML for printing or export.
+ */
+export const markdownToPrintHtml = (markdownContent: string): string => {
+  if (!markdownContent) return '';
+  return renderToStaticMarkup(
+    React.createElement(
+      ReactMarkdown,
+      {
+        remarkPlugins: [remarkGfm],
+      },
+      markdownContent
+    )
+  );
+};
+
+/**
  * Opens a dedicated print dialog for a specific snippet using a hidden iframe.
+ * Renders rich text HTML typography instead of raw markdown syntax.
  * Avoids window.open popup blockers in both desktop webviews (Tauri/WebView2) and browsers.
  */
 export const printSnippetToPdf = (title: string, markdownContent: string) => {
+  const renderedHtml = markdownToPrintHtml(markdownContent);
+
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -165,38 +189,278 @@ export const printSnippetToPdf = (title: string, markdownContent: string) => {
     return;
   }
 
+  const currentDate = new Date().toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
   doc.open();
   doc.write(`
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
       <head>
+        <meta charset="utf-8" />
         <title>${title}</title>
         <style>
-          body {
-            font-family: 'Times New Roman', Times, serif;
-            padding: 40px;
-            max-width: 800px;
-            margin: 0 auto;
-            color: black;
-            line-height: 1.6;
+          @page {
+            size: A4 portrait;
+            margin: 20mm 15mm 20mm 15mm;
           }
-          h1, h2, h3 { font-family: Arial, sans-serif; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th, td { border: 1px solid #333; padding: 8px; text-align: left; }
-          th { background: #f2f2f2; }
-          pre { background: #f8f8f8; padding: 10px; border-radius: 4px; white-space: pre-wrap; }
+
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            font-family: 'Charter', 'Georgia', 'Cambria', 'Times New Roman', Times, serif;
+            color: #1e293b;
+            background: #ffffff;
+            line-height: 1.65;
+            font-size: 11pt;
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 30px;
+          }
+
+          .header-banner {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 12px;
+            margin-bottom: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+          }
+
+          .app-title {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            font-size: 15pt;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #0f172a;
+            margin: 0;
+            text-transform: uppercase;
+          }
+
+          .app-subtitle {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            font-size: 8.5pt;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 2px;
+          }
+
+          .header-meta {
+            text-align: right;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            font-size: 9pt;
+            color: #475569;
+          }
+
+          .doc-badge {
+            display: inline-block;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 8.5pt;
+            margin-bottom: 3px;
+            color: #0f172a;
+          }
+
+          /* Headings */
+          h1, h2, h3, h4, h5, h6 {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #0f172a;
+            page-break-after: avoid;
+            break-after: avoid;
+            line-height: 1.25;
+          }
+
+          h1 {
+            font-size: 22pt;
+            font-weight: 800;
+            margin-top: 32px;
+            margin-bottom: 14px;
+            border-bottom: 1.5px solid #cbd5e1;
+            padding-bottom: 8px;
+          }
+
+          h2 {
+            font-size: 16pt;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-top: 26px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 4px;
+          }
+
+          h3 {
+            font-size: 13pt;
+            font-weight: 600;
+            color: #334155;
+            margin-top: 20px;
+            margin-bottom: 8px;
+          }
+
+          h4 {
+            font-size: 11pt;
+            font-weight: 600;
+            color: #475569;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          }
+
+          /* Paragraphs & Text */
+          p {
+            margin: 0 0 12px 0;
+            text-align: justify;
+          }
+
+          strong {
+            font-weight: 700;
+            color: #0f172a;
+          }
+
+          em {
+            font-style: italic;
+          }
+
+          /* Lists */
+          ul {
+            list-style-type: disc;
+            margin: 8px 0 14px 0;
+            padding-left: 24px;
+          }
+
+          ol {
+            list-style-type: decimal;
+            margin: 8px 0 14px 0;
+            padding-left: 24px;
+          }
+
+          li {
+            margin-bottom: 6px;
+            line-height: 1.55;
+          }
+
+          li > p {
+            margin: 0;
+            display: inline;
+          }
+
+          /* Tables */
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 18px 0;
+            font-size: 9.5pt;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            font-weight: 700;
+            text-align: left;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+          }
+
+          td {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+            vertical-align: top;
+          }
+
+          tr:nth-child(even) td {
+            background-color: #f8fafc;
+          }
+
+          /* Blockquotes */
+          blockquote {
+            margin: 16px 0;
+            padding: 10px 18px;
+            border-left: 4px solid #3b82f6;
+            background-color: #f8fafc;
+            font-style: italic;
+            color: #334155;
+            border-radius: 0 6px 6px 0;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          /* Code & Blocks */
+          pre {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin: 16px 0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 9pt;
+            line-height: 1.45;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 9pt;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 2px 5px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+          }
+
+          pre code {
+            background: transparent;
+            padding: 0;
+            border: none;
+            font-size: inherit;
+          }
+
+          hr {
+            border: none;
+            border-top: 1px solid #cbd5e1;
+            margin: 24px 0;
+          }
+
+          /* Print Overrides */
           @media print {
-            body { padding: 0; }
-            @page { margin: 2cm; }
+            body {
+              padding: 0;
+              margin: 0;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
           }
         </style>
       </head>
       <body>
-        <div style="border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 30px;">
-          <h2 style="margin: 0;">TomGees Scholar Studio</h2>
-          <div style="font-size: 12px; color: #555;">${title} • Generated on ${new Date().toLocaleDateString()}</div>
+        <div class="header-banner">
+          <div>
+            <h1 class="app-title">TomGees Scholar Studio</h1>
+            <div class="app-subtitle">Academic Intelligence & Study Engine</div>
+          </div>
+          <div class="header-meta">
+            <div class="doc-badge">${title}</div>
+            <div>${currentDate}</div>
+          </div>
         </div>
-        <div id="content" style="white-space: pre-wrap; font-family: 'Times New Roman', serif;">${markdownContent}</div>
+        <div id="content" class="rich-content">
+          ${renderedHtml}
+        </div>
       </body>
     </html>
   `);
@@ -216,5 +480,5 @@ export const printSnippetToPdf = (title: string, markdownContent: string) => {
         }
       }, 1000);
     }
-  }, 250);
+  }, 300);
 };
