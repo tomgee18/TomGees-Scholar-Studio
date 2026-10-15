@@ -348,17 +348,33 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
-                    <span className="font-semibold text-indigo-400 text-xs">BM25 Retrieval Tier (RAG)</span>
+                    <span className="font-semibold text-indigo-400 text-xs">Dynamic BM25 Retrieval Tier (RAG)</span>
                     <p className="text-gray-400">
-                      When context exceeds 60% or when on compact local models (Ollama/LM Studio), document text is split into ~400-word chunks and BM25 relevance scores retrieve the top-15 most pertinent passages.
+                      When context exceeds available input budget or on compact models (such as 8k Ollama / LM Studio), document text is indexed into chunks and BM25 relevance scores extract the top-ranked passages scaled directly to your model's context window.
                     </p>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-black/40 border border-white/10">
-                  <h4 className="font-semibold text-white text-xs mb-1">Document Inspector Modal</h4>
-                  <p className="text-gray-400">
-                    Click the search icon next to any document in the sidebar to view its raw extracted text, word count, and toggle its participation in drafting context.
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
+                    <span className="font-semibold text-cyberLime text-xs">Per-Profile Context Window Setting</span>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      Configure your model's exact context limit (4K, 8K, 16K, 32K, 64K, 128K, or 1M) in <em>Settings &rarr; Endpoint Profile</em>. Scholar Studio automatically reserves output generation headroom (~2,048 tokens on 8k models) so requests never fail with context overflow errors.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
+                    <span className="font-semibold text-purple-400 text-xs">Strict Evidentiary Grounding</span>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      Toggle <strong>Strict Grounding</strong> to prevent non-Gemini models from providing implied or guessed answers. Forces strict citations from the vault, reports <code>[Source Gap]</code> for missing concepts, and lowers temperature to 0.15.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 space-y-1.5">
+                  <h4 className="font-semibold text-white text-xs mb-1">Global & Profile Custom Instructions</h4>
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    Set your scholarly directives, tone constraints, and dissertation formatting in <em>Settings &rarr; Global Custom Instructions</em>, or override them per model profile. Click the sliders icon in the status bar anytime to inspect your active window.
                   </p>
                 </div>
               </div>

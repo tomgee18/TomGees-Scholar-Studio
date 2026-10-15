@@ -9,11 +9,15 @@ import {
   Sparkles,
   ChevronDown,
   Layers,
+  Sliders,
+  FileText,
+  RotateCcw,
+  ShieldCheck,
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
-import { GlassInput, PrimaryButton, GhostButton } from './ui/GlassComponents';
+import { GlassInput, GlassTextarea, PrimaryButton, GhostButton } from './ui/GlassComponents';
 import { useToast } from '../context/ToastContext';
-import { OpenAIProfile } from '../types';
+import { OpenAIProfile, DEFAULT_SYSTEM_PROMPT } from '../types';
 import { fetchModelsFromEndpoint, DiscoveredModel } from '../lib/ai/openAICompatibleProvider';
 import { listAvailableGeminiModels, GeminiDiscoveredModel } from '../lib/ai/geminiProvider';
 
@@ -40,6 +44,10 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const [geminiDiscoveredModels, setGeminiDiscoveredModels] = useState<GeminiDiscoveredModel[]>([]);
   const [loadingGeminiModels, setLoadingGeminiModels] = useState(false);
 
+  // Custom instructions & grounding
+  const [customSystemPrompt, setCustomSystemPrompt] = useState(config.customSystemPrompt || DEFAULT_SYSTEM_PROMPT);
+  const [strictGrounding, setStrictGrounding] = useState(typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true);
+
   // New profile creator
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
@@ -49,7 +57,9 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
     setSelectedProfileId(config.activeProfileId);
     setGeminiApiKey(config.geminiApiKey);
     setGeminiModel(config.geminiModel);
-  }, [config.activeProfileId, config.geminiApiKey, config.geminiModel]);
+    setCustomSystemPrompt(config.customSystemPrompt || DEFAULT_SYSTEM_PROMPT);
+    setStrictGrounding(typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true);
+  }, [config.activeProfileId, config.geminiApiKey, config.geminiModel, config.customSystemPrompt, config.strictGrounding]);
 
   useEffect(() => {
     const current = config.profiles.find((p) => p.id === selectedProfileId) || config.profiles[0];
@@ -103,8 +113,10 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
         activeProfileId: profileForm.id,
         geminiApiKey,
         geminiModel,
+        customSystemPrompt,
+        strictGrounding,
       });
-      addToast('Provider settings saved', 'success');
+      addToast('Configuration & instructions saved', 'success');
       onClose();
     }
   };
@@ -126,6 +138,7 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
       baseUrl: newProfileUrl.trim(),
       apiKey: '',
       model: 'default',
+      contextWindow: 8192,
       isPreset: false,
     };
 
@@ -320,6 +333,87 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
                 )}
               </div>
             </div>
+
+            {/* Context Window Setting */}
+            <div className="space-y-2 pt-2 border-t border-white/5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-gray-400 font-mono flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-cyberLime" />
+                  CONTEXT WINDOW LIMIT (TOKENS)
+                </label>
+                <span className="text-[10px] text-gray-500 font-mono">
+                  {(profileForm.contextWindow || 8192).toLocaleString()} tokens
+                </span>
+              </div>
+              
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: '4K', value: 4096 },
+                  { label: '8K', value: 8192 },
+                  { label: '16K', value: 16384 },
+                  { label: '32K', value: 32768 },
+                  { label: '64K', value: 64000 },
+                  { label: '128K', value: 128000 },
+                  { label: '1M', value: 1000000 },
+                ].map((preset) => {
+                  const isActive = (profileForm.contextWindow || 8192) === preset.value;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setProfileForm({ ...profileForm, contextWindow: preset.value })}
+                      className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-all ${
+                        isActive
+                          ? 'bg-cyberLime/20 border-cyberLime text-cyberLime font-bold shadow-[0_0_8px_rgba(132,249,6,0.2)]'
+                          : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <GlassInput
+                  type="number"
+                  min={1024}
+                  max={2000000}
+                  step={1024}
+                  value={profileForm.contextWindow || 8192}
+                  onChange={(e) => setProfileForm({ ...profileForm, contextWindow: Number(e.target.value) || 8192 })}
+                  className="text-xs font-mono"
+                  placeholder="Custom token limit (e.g. 8192)"
+                />
+                <span className="text-xs text-gray-500 font-mono shrink-0">tokens</span>
+              </div>
+            </div>
+
+            {/* Profile-Specific Custom Instructions Override */}
+            <div className="space-y-1.5 pt-2 border-t border-white/5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-gray-400 font-mono flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-cyberLime" />
+                  PROFILE-SPECIFIC INSTRUCTIONS OVERRIDE (OPTIONAL)
+                </label>
+                {profileForm.customInstructions && (
+                  <button
+                    type="button"
+                    onClick={() => setProfileForm({ ...profileForm, customInstructions: '' })}
+                    className="text-[10px] text-gray-500 hover:text-red-400 font-mono transition-colors"
+                  >
+                    Clear Override
+                  </button>
+                )}
+              </div>
+              <GlassTextarea
+                rows={2}
+                value={profileForm.customInstructions || ''}
+                onChange={(e) => setProfileForm({ ...profileForm, customInstructions: e.target.value })}
+                placeholder="Leave blank to inherit global instructions, or customize for this specific endpoint..."
+                className="text-xs font-mono resize-y"
+              />
+            </div>
           </div>
 
           {/* Native Gemini Direct Configuration */}
@@ -400,6 +494,71 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Global Custom Instructions & Academic Persona */}
+          <div className="space-y-3 pb-6 border-b border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-cyberLime" />
+                <h4 className="text-sm font-bold text-white uppercase font-mono tracking-wide">
+                  Global Custom Instructions & Academic Persona
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomSystemPrompt(DEFAULT_SYSTEM_PROMPT)}
+                className="text-[10px] font-mono text-gray-400 hover:text-cyberLime flex items-center gap-1 transition-colors px-2 py-0.5 rounded bg-white/5 border border-white/5 hover:border-cyberLime/30"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset to Recommended
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Define your custom scholarly directives, analytical perspective, dissertation structure constraints, and preferred citation style applied across all drafting modes.
+            </p>
+            <GlassTextarea
+              rows={4}
+              value={customSystemPrompt}
+              onChange={(e) => setCustomSystemPrompt(e.target.value)}
+              placeholder="Enter custom scholarly persona, guidelines, or formatting rules..."
+              className="text-xs font-mono resize-y"
+            />
+          </div>
+
+          {/* Strict Grounding Anti-Hallucination Mode */}
+          <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className={`w-4 h-4 ${strictGrounding ? 'text-cyberLime' : 'text-gray-400'}`} />
+                <span className="text-sm font-bold text-white font-mono uppercase tracking-wide">
+                  Strict Evidentiary Grounding
+                </span>
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                  strictGrounding
+                    ? 'bg-cyberLime/15 border-cyberLime/30 text-cyberLime'
+                    : 'bg-white/5 border-white/10 text-gray-400'
+                }`}>
+                  {strictGrounding ? 'ANTI-HALLUCINATION ACTIVE' : 'CREATIVE MODE'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Prevents non-Gemini models from providing implied or guessed answers. Strictly anchors all factual claims in the Context Vault, flags missing concepts as [Source Gap], and automatically sets generation temperature to 0.15.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setStrictGrounding(!strictGrounding)}
+              className={`shrink-0 w-12 h-6 rounded-full transition-colors relative p-0.5 ${
+                strictGrounding ? 'bg-cyberLime' : 'bg-gray-700'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-black shadow-md transition-transform ${
+                  strictGrounding ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
         </div>
 

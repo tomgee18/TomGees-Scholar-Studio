@@ -13,6 +13,7 @@ interface EngineParams {
     geminiModel: string;
     customSystemPrompt: string;
     webAccessEnabled: boolean;
+    strictGrounding?: boolean;
   };
   onChunk: (text: string) => void;
   onStatusUpdate?: (status: string) => void;
@@ -83,7 +84,8 @@ export const constructSystemPrompt = (
   mode: DraftMode,
   webAccessEnabled: boolean,
   contextData: string,
-  scholarlyEvidenceBlock?: string
+  scholarlyEvidenceBlock?: string,
+  strictGrounding?: boolean
 ): string => {
   const modeInstruction =
     mode === DraftMode.THESIS
@@ -105,8 +107,21 @@ export const constructSystemPrompt = (
 `;
   }
 
+  let strictGroundingInstruction = '';
+  if (strictGrounding) {
+    strictGroundingInstruction = `
+[STRICT EVIDENTIARY GROUNDING: NO IMPLIED ANSWERS]
+- Absolute Source Anchoring: Every concept, empirical finding, definition, equation, and claim must be explicitly grounded in the provided CONTEXT VAULT DATA.
+- Zero Extrapolation / No Implied Answers: Do not guess, extrapolate, or inject external pre-trained assumptions as facts. If the vault data does not directly support a claim, do NOT imply an answer.
+- Explicit Source Gaps: If a requested topic, section, or question is not covered in the provided materials, explicitly state: "[Source Gap: This concept is not covered in the provided vault materials]" rather than fabricating an explanation.
+- Attribute Findings: Whenever discussing findings, explicitly cite the relevant source document or authors provided.
+`;
+  }
+
   return `
 ${customSystemPrompt}
+
+${strictGroundingInstruction}
 
 ${modeInstruction}
 
@@ -164,19 +179,33 @@ export const runDraftEngine = async (params: EngineParams) => {
     }
   }
 
+  const isStrictGrounding =
+    typeof config.strictGrounding === 'boolean'
+      ? config.strictGrounding
+      : typeof config.activeProfile?.strictGrounding === 'boolean'
+      ? config.activeProfile.strictGrounding
+      : false;
+
+  const effectiveInstructions =
+    config.activeProfile?.customInstructions?.trim() || config.customSystemPrompt;
+
   const finalSystemPrompt = constructSystemPrompt(
-    config.customSystemPrompt,
+    effectiveInstructions,
     mode,
     config.webAccessEnabled,
     contextData,
-    scholarlyEvidenceBlock
+    scholarlyEvidenceBlock,
+    isStrictGrounding
   );
+
+  const temperature = isStrictGrounding ? 0.15 : 0.7;
 
   await routeAIRequest({
     provider: config.provider,
     activeProfile: config.activeProfile,
     systemPrompt: finalSystemPrompt,
     userPrompt: userDirective,
+    temperature,
     config: {
       geminiApiKey: config.geminiApiKey,
       geminiModel: config.geminiModel,

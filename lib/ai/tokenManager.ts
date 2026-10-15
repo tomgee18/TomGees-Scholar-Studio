@@ -19,7 +19,11 @@ export const estimateTokens = (text: string): number => {
   return Math.ceil(text.length / 3.8);
 };
 
-export const getModelContextLimit = (modelName: string): number => {
+export const getModelContextLimit = (modelName: string, overrideLimit?: number): number => {
+  if (typeof overrideLimit === 'number' && overrideLimit > 0) {
+    return overrideLimit;
+  }
+
   const name = modelName.toLowerCase();
 
   // Gemini models (1 Million tokens)
@@ -47,13 +51,15 @@ export const getModelContextLimit = (modelName: string): number => {
 /**
  * Dynamic model-aware chunk count calculation.
  * Ensures large models (64k, 128k+) extract comprehensive context,
- * while compact models (8k) do not get overwhelmed.
+ * while compact models (4k, 8k) reserve safe headroom for output generation.
  */
 export const getOptimalChunkCount = (maxContextTokens: number): number => {
-  if (maxContextTokens >= 128000) return 40; // ~22,000 tokens
-  if (maxContextTokens >= 64000) return 25;  // ~14,000 tokens (DeepSeek)
-  if (maxContextTokens >= 32000) return 18;  // ~10,000 tokens (Qwen / Mistral)
-  return 10;                                 // ~5,500 tokens (compact local models)
+  if (maxContextTokens >= 128000) return 40; // ~21,200 tokens
+  if (maxContextTokens >= 64000) return 25;  // ~13,250 tokens (DeepSeek)
+  if (maxContextTokens >= 32000) return 18;  // ~9,540 tokens (Qwen / Mistral)
+  if (maxContextTokens >= 16000) return 14;  // ~7,420 tokens
+  if (maxContextTokens >= 8000) return 8;    // ~4,240 tokens (8k models like Ollama/LM Studio)
+  return 4;                                  // ~2,120 tokens (compact 4k models)
 };
 
 export const calculateTokenBudget = (
@@ -61,18 +67,25 @@ export const calculateTokenBudget = (
   vaultText: string,
   userPrompt: string,
   modelName: string,
-  forceRAG = false
+  forceRAG = false,
+  overrideLimit?: number
 ): TokenBudget => {
-  const maxContextTokens = getModelContextLimit(modelName);
+  const maxContextTokens = getModelContextLimit(modelName, overrideLimit);
   const rawVaultTokens = estimateTokens(vaultText);
   const baseTokens = estimateTokens(`${systemPrompt}\n${userPrompt}`);
+
+  // Headroom reservation: reserve ~2,048 tokens (or 25% of window for tight models) for generated output
+  const reservedOutputTokens = Math.min(2048, Math.max(512, Math.floor(maxContextTokens * 0.25)));
+  const availableInputBudget = Math.max(512, maxContextTokens - reservedOutputTokens);
+
   const optimalChunkCount = getOptimalChunkCount(maxContextTokens);
 
-  // RAG triggers if forced or if vault text exceeds 60% of model window
-  const isRAGActive = forceRAG || rawVaultTokens > maxContextTokens * 0.6;
+  // RAG triggers if forced or if base prompt + vault text exceeds available input budget
+  const isRAGActive = forceRAG || (baseTokens + rawVaultTokens) > availableInputBudget;
 
   // Each chunk is ~400 words (~530 tokens)
-  const estimatedRAGTokens = optimalChunkCount * 530;
+  const maxAllowedRAGTokens = Math.max(0, availableInputBudget - baseTokens);
+  const estimatedRAGTokens = Math.min(optimalChunkCount * 530, maxAllowedRAGTokens);
 
   const injectedTokens = isRAGActive
     ? Math.min(rawVaultTokens, baseTokens + estimatedRAGTokens)

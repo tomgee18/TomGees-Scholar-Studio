@@ -90,12 +90,16 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         ...defaultP,
         ...(savedP || {}),
         apiKey: savedP?.apiKey || envKey,
+        contextWindow: savedP?.contextWindow || defaultP.contextWindow || 8192,
       };
     });
 
     const customProfiles = (savedParsed?.profiles || []).filter(
       (p: OpenAIProfile) => !DEFAULT_OPENAI_PROFILES.some((d) => d.id === p.id)
-    );
+    ).map((p: OpenAIProfile) => ({
+      ...p,
+      contextWindow: p.contextWindow || 8192,
+    }));
 
     return {
       aiProvider: savedParsed?.aiProvider || AIProvider.OPENAI_COMPATIBLE,
@@ -106,6 +110,7 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
       customSystemPrompt: savedParsed?.customSystemPrompt || DEFAULT_SYSTEM_PROMPT,
       webAccessEnabled: typeof savedParsed?.webAccessEnabled === 'boolean' ? savedParsed.webAccessEnabled : false,
       forceSmartRetrieval: typeof savedParsed?.forceSmartRetrieval === 'boolean' ? savedParsed.forceSmartRetrieval : false,
+      strictGrounding: typeof savedParsed?.strictGrounding === 'boolean' ? savedParsed.strictGrounding : true,
     };
   });
 
@@ -150,12 +155,16 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
               ...defaultP,
               ...(savedP || {}),
               apiKey: savedP?.apiKey || envKey,
+              contextWindow: savedP?.contextWindow || defaultP.contextWindow || 8192,
             };
           });
 
           const customProfiles = (configSource.profiles || []).filter(
             (p: OpenAIProfile) => !DEFAULT_OPENAI_PROFILES.some((d) => d.id === p.id)
-          );
+          ).map((p: OpenAIProfile) => ({
+            ...p,
+            contextWindow: p.contextWindow || 8192,
+          }));
 
           setConfig((prev) => {
             const hydrated: AppConfig = {
@@ -163,6 +172,7 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
               ...configSource,
               profiles: [...mergedProfiles, ...customProfiles],
               geminiApiKey: configSource?.geminiApiKey || envMap.GEMINI_API_KEY || prev.geminiApiKey,
+              strictGrounding: typeof configSource?.strictGrounding === 'boolean' ? configSource.strictGrounding : prev.strictGrounding ?? true,
             };
             saveConfigToDualStorage(hydrated);
             return hydrated;

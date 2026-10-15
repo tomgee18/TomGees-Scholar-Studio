@@ -8,6 +8,8 @@ interface RouterParams {
   systemPrompt?: string;
   userPrompt?: string;
   messages?: AIMessage[];
+  temperature?: number;
+  maxTokens?: number;
   config: {
     geminiApiKey: string;
     geminiModel: string;
@@ -17,7 +19,7 @@ interface RouterParams {
 }
 
 export const routeAIRequest = async (params: RouterParams) => {
-  const { provider, activeProfile, systemPrompt, userPrompt, messages, config, onChunk, signal } = params;
+  const { provider, activeProfile, systemPrompt, userPrompt, messages, temperature, maxTokens, config, onChunk, signal } = params;
 
   const resolvedMessages: AIMessage[] = messages
     ? messages
@@ -46,6 +48,8 @@ export const routeAIRequest = async (params: RouterParams) => {
       apiKey: activeProfile.apiKey,
       model: activeProfile.model,
       messages: resolvedMessages,
+      temperature,
+      maxTokens,
       onChunk,
       signal,
     });

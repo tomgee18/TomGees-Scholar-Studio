@@ -44,6 +44,9 @@ export interface OpenAIProfile {
   envKeyName?: string;
   model: string;
   isPreset?: boolean;
+  contextWindow?: number;
+  customInstructions?: string;
+  strictGrounding?: boolean;
 }
 
 export enum DraftMode {
@@ -113,6 +116,7 @@ export interface AppConfig {
   customSystemPrompt: string;
   webAccessEnabled: boolean;
   forceSmartRetrieval?: boolean;
+  strictGrounding?: boolean;
 }
 
 export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
@@ -123,6 +127,7 @@ export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
     apiKey: '',
     envKeyName: 'DEEPSEEK_API_KEY',
     model: 'deepseek-chat',
+    contextWindow: 64000,
     isPreset: true,
   },
   {
@@ -132,6 +137,7 @@ export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
     apiKey: '',
     envKeyName: 'GROQ_API_KEY',
     model: 'llama-3.3-70b-versatile',
+    contextWindow: 128000,
     isPreset: true,
   },
   {
@@ -141,6 +147,7 @@ export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
     apiKey: '',
     envKeyName: 'OPENROUTER_API_KEY',
     model: 'google/gemini-2.0-flash-001',
+    contextWindow: 128000,
     isPreset: true,
   },
   {
@@ -150,6 +157,7 @@ export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
     apiKey: 'ollama',
     envKeyName: 'OLLAMA_API_KEY',
     model: 'llama3',
+    contextWindow: 8192,
     isPreset: true,
   },
   {
@@ -158,6 +166,7 @@ export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
     baseUrl: 'http://localhost:1234/v1',
     apiKey: 'not-needed',
     model: 'local-model',
+    contextWindow: 8192,
     isPreset: true,
   },
   {
@@ -167,6 +176,7 @@ export const DEFAULT_OPENAI_PROFILES: OpenAIProfile[] = [
     apiKey: '',
     envKeyName: 'OPENAI_API_KEY',
     model: 'gpt-4o',
+    contextWindow: 128000,
     isPreset: true,
   },
 ];

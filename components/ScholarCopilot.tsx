@@ -248,10 +248,44 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
       }
     }
 
-    const copilotSystemPrompt = `You are the "Scholar Copilot", a peer-level academic research collaborator, literature investigator, and co-author.
+    // Determine target profile and model
+    const targetProfile: OpenAIProfile | undefined =
+      chatProvider === AIProvider.OPENAI_COMPATIBLE
+        ? config.profiles.find((p) => p.id === chatProfileId) || activeProfile
+        : undefined;
+
+    const resolvedApiKey = targetProfile ? resolveProfileKey(targetProfile) : '';
+    const activeProfileWithKey = targetProfile
+      ? { ...targetProfile, apiKey: resolvedApiKey }
+      : undefined;
+
+    const modelName =
+      chatProvider === AIProvider.GEMINI_DIRECT
+        ? config.geminiModel || 'gemini-2.5-flash'
+        : targetProfile?.model || 'default-model';
+
+    const isStrictGrounding =
+      typeof config.strictGrounding === 'boolean'
+        ? config.strictGrounding
+        : typeof targetProfile?.strictGrounding === 'boolean'
+        ? targetProfile.strictGrounding
+        : false;
+
+    const strictGroundingDirective = isStrictGrounding
+      ? `\n[STRICT FACTUAL GROUNDING: NO IMPLIED ANSWERS]
+- Strictly anchor every claim, critique, and suggestion in the provided Active Draft, Vault Sources, and Verified Scholarly Literature.
+- Do NOT provide implied, guessed, or extrapolated answers from pre-trained priors. If information is missing from the provided sources, explicitly state: "[Source Gap: Not in provided materials]".`
+      : '';
+
+    const effectiveInstructions = targetProfile?.customInstructions?.trim() || config.customSystemPrompt;
+
+    const copilotSystemPrompt = `${effectiveInstructions}
+
+You are the "Scholar Copilot", a peer-level academic research collaborator, literature investigator, and co-author.
 Your role is to assist the scholar with critique, source synthesis, argumentation, citation verification, and precise drafting.
 Be concise, rigorous, scholarly, and insightful. When asked to write or improve text, provide drop-in ready prose.
-${contextBlock ? `Refer directly to the provided Active Draft, Vault Sources, and Verified Scholarly Literature where relevant. Cite authentic DOIs when referencing external literature.` : ''}`;
+${strictGroundingDirective}
+${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, and Verified Scholarly Literature where relevant. Cite authentic DOIs when referencing external literature.` : ''}`;
 
     // Compile multi-turn history
     const historyPayload = messages.slice(-10).map((m) => ({
@@ -269,22 +303,6 @@ ${contextBlock ? `Refer directly to the provided Active Draft, Vault Sources, an
       { role: 'user' as const, content: finalUserContent },
     ];
 
-    // Determine target profile and model
-    const targetProfile: OpenAIProfile | undefined =
-      chatProvider === AIProvider.OPENAI_COMPATIBLE
-        ? config.profiles.find((p) => p.id === chatProfileId) || activeProfile
-        : undefined;
-
-    const resolvedApiKey = targetProfile ? resolveProfileKey(targetProfile) : '';
-    const activeProfileWithKey = targetProfile
-      ? { ...targetProfile, apiKey: resolvedApiKey }
-      : undefined;
-
-    const modelName =
-      chatProvider === AIProvider.GEMINI_DIRECT
-        ? config.geminiModel || 'gemini-2.5-flash'
-        : targetProfile?.model || 'default-model';
-
     let accumulatedText = '';
 
     try {
@@ -292,6 +310,7 @@ ${contextBlock ? `Refer directly to the provided Active Draft, Vault Sources, an
         provider: chatProvider,
         activeProfile: activeProfileWithKey,
         messages: fullMessages,
+        temperature: isStrictGrounding ? 0.15 : 0.7,
         config: {
           geminiApiKey: config.geminiApiKey,
           geminiModel: config.geminiModel,

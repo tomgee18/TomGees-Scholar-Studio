@@ -3,6 +3,8 @@ export interface OpenAICompatibleParams {
   apiKey?: string;
   model: string;
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+  temperature?: number;
+  maxTokens?: number;
   onChunk: (text: string) => void;
   signal?: AbortSignal;
 }
@@ -77,6 +79,8 @@ export const generateOpenAICompatible = async ({
   apiKey,
   model,
   messages,
+  temperature,
+  maxTokens,
   onChunk,
   signal,
 }: OpenAICompatibleParams): Promise<void> => {
@@ -102,14 +106,24 @@ export const generateOpenAICompatible = async ({
 
   while (attempt <= MAX_RETRIES) {
     try {
+      const requestPayload: Record<string, any> = {
+        model: model || 'gpt-4o',
+        messages,
+        stream: true,
+      };
+
+      if (typeof temperature === 'number') {
+        requestPayload.temperature = temperature;
+      }
+
+      if (typeof maxTokens === 'number' && maxTokens > 0) {
+        requestPayload.max_tokens = maxTokens;
+      }
+
       const response = await fetch(targetUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          model: model || 'gpt-4o',
-          messages,
-          stream: true,
-        }),
+        body: JSON.stringify(requestPayload),
         signal,
       });
 

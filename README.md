@@ -29,13 +29,15 @@ A local-first, offline-capable academic research suite and study engine designed
 - **Anki & Quizlet TSV Deck (`#separator:tab`):** Direct 1-click import into Anki or Quizlet.
 - **Examiner Evaluation Report:** Socratic examiner's mark out of 100, critiques, and remediation steps exported to PDF/MD/TXT.
 
-### 4. Client-Side BM25 RAG & Token Efficiency
+### 4. Client-Side BM25 RAG & Dynamic Token Management
 - Automatically splits documents into ~400-word chunks upon upload into IndexedDB.
-- **Adaptive Injection:** Full text is injected when under 60% of context capacity; switches to top-15 BM25 ranked chunks on large corpuses or compact local models, cutting token usage by **80% to 90%**.
+- **Adaptive Injection & Context Window Scaling:** Configurable context limits (4K to 1M tokens) per endpoint profile with automatic ~2,048 token generation headroom reservation on 8k models.
+- **Strict Evidentiary Grounding:** Toggle anti-hallucination mode to prevent non-Gemini models from providing implied or guessed answers, locking generation to vault citations and setting deterministic temperature (0.15).
 
-### 5. Universal AI Engine Hub
+### 5. Universal AI Engine Hub & Custom Instructions
 - Connects to any OpenAI-compatible API (`/v1/chat/completions`) with presets for **DeepSeek**, **Groq Cloud**, **OpenRouter**, **Ollama Local**, **LM Studio**, and **OpenAI**.
 - Dedicated native **Google Gemini Direct SDK** (`@google/genai`) with live model discovery.
+- **Custom Instructions & Persona Editor:** Global and per-profile custom prompts for dissertation constraints, citation guidelines, and scholarly tone.
 - Auto-detects keys from host system environment variables (`GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_HOST`).
 
 ### 6. In-App Reference Manual & Keybindings (<kbd>F1</kbd>)

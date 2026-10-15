@@ -55,6 +55,19 @@ export const GlassInput = (props: React.InputHTMLAttributes<HTMLInputElement>) =
   />
 );
 
+// Textarea with glass style
+export const GlassTextarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+  <textarea
+    {...props}
+    className={`
+      w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 
+      text-gray-200 placeholder-gray-500 outline-none
+      focus:border-cyberLime/50 focus:bg-white/10 transition-all duration-200
+      ${props.className || ''}
+    `}
+  />
+);
+
 // Badge component
 // Fixed: Made children optional for consistency
 export const Badge = ({ children, color = 'lime' }: { children?: React.ReactNode, color?: 'lime' | 'violet' }) => {

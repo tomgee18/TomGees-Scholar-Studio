@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { db } from './db';
-import { DEFAULT_OPENAI_PROFILES, OpenAIProfile, AppConfig, AIProvider, DEFAULT_SYSTEM_PROMPT } from '../types';
+import { DEFAULT_OPENAI_PROFILES, OpenAIProfile, AppConfig, AIProvider } from '../types';
 
 describe('Settings & Profile Persistence Engine', () => {
   it('has settings table properly registered in Dexie schema', () => {
@@ -16,6 +16,9 @@ describe('Settings & Profile Persistence Engine', () => {
       baseUrl: 'http://192.168.1.100:8000/v1',
       apiKey: 'sk-custom-cluster-key',
       model: 'mistralai/Mistral-7B-Instruct-v0.3',
+      contextWindow: 16384,
+      customInstructions: 'Strictly format mathematical proofs in LaTeX equations.',
+      strictGrounding: true,
       isPreset: false,
     };
 
@@ -25,21 +28,28 @@ describe('Settings & Profile Persistence Engine', () => {
       profiles: [...DEFAULT_OPENAI_PROFILES, customProfile],
       geminiApiKey: 'custom-gemini-key',
       geminiModel: 'gemini-2.5-flash',
-      customSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+      customSystemPrompt: 'You are an advanced academic research fellow.',
       webAccessEnabled: true,
       forceSmartRetrieval: false,
+      strictGrounding: true,
     };
 
     const serialized = JSON.stringify(config);
     const parsed: AppConfig = JSON.parse(serialized);
 
     expect(parsed.activeProfileId).toBe('custom-vllm-cluster');
+    expect(parsed.strictGrounding).toBe(true);
+    expect(parsed.customSystemPrompt).toBe('You are an advanced academic research fellow.');
+
     const custom = parsed.profiles.find((p) => p.id === 'custom-vllm-cluster');
     expect(custom).toBeDefined();
     expect(custom?.name).toBe('Local vLLM Server');
     expect(custom?.baseUrl).toBe('http://192.168.1.100:8000/v1');
     expect(custom?.apiKey).toBe('sk-custom-cluster-key');
     expect(custom?.model).toBe('mistralai/Mistral-7B-Instruct-v0.3');
+    expect(custom?.contextWindow).toBe(16384);
+    expect(custom?.customInstructions).toBe('Strictly format mathematical proofs in LaTeX equations.');
+    expect(custom?.strictGrounding).toBe(true);
     expect(custom?.isPreset).toBe(false);
   });
 
@@ -50,11 +60,12 @@ describe('Settings & Profile Persistence Engine', () => {
       baseUrl: 'http://10.0.0.50:11434/v1',
       apiKey: '',
       model: 'qwen2.5:14b',
+      contextWindow: 8192,
       isPreset: false,
     };
 
     const savedProfiles: Array<Partial<OpenAIProfile> & { id: string }> = [
-      { id: 'deepseek', apiKey: 'sk-deepseek-custom', model: 'deepseek-reasoner' },
+      { id: 'deepseek', apiKey: 'sk-deepseek-custom', model: 'deepseek-reasoner', contextWindow: 64000 },
       customProfile,
     ];
 
@@ -64,12 +75,16 @@ describe('Settings & Profile Persistence Engine', () => {
       return {
         ...defaultP,
         ...(savedP || {}),
+        contextWindow: savedP?.contextWindow || defaultP.contextWindow || 8192,
       };
     });
 
     const customProfiles = savedProfiles.filter(
       (p) => !DEFAULT_OPENAI_PROFILES.some((d) => d.id === p.id)
-    );
+    ).map((p) => ({
+      ...p,
+      contextWindow: p.contextWindow || 8192,
+    }));
 
     const merged = [...defaultMerged, ...customProfiles];
 
@@ -77,12 +92,14 @@ describe('Settings & Profile Persistence Engine', () => {
     const deepseek = merged.find((p) => p.id === 'deepseek');
     expect(deepseek?.apiKey).toBe('sk-deepseek-custom');
     expect(deepseek?.model).toBe('deepseek-reasoner');
+    expect(deepseek?.contextWindow).toBe(64000);
 
     const custom = merged.find((p) => p.id === 'custom-ollama-remote') as OpenAIProfile | undefined;
     expect(custom).toBeDefined();
     expect(custom?.name).toBe('Lab Server Ollama');
     expect(custom?.baseUrl).toBe('http://10.0.0.50:11434/v1');
     expect(custom?.model).toBe('qwen2.5:14b');
+    expect(custom?.contextWindow).toBe(8192);
   });
 
   it('handles custom profile deletion while safely retaining active preset', () => {
@@ -92,6 +109,7 @@ describe('Settings & Profile Persistence Engine', () => {
       baseUrl: 'http://localhost:8000/v1',
       apiKey: '',
       model: 'test-model',
+      contextWindow: 8192,
       isPreset: false,
     };
 

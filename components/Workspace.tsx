@@ -20,6 +20,8 @@ import {
   BookmarkPlus,
   ChevronDown,
   ChevronUp,
+  ShieldCheck,
+  Sliders,
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
 import { runDraftEngine, constructSystemPrompt } from '../lib/ai/draftEngine';
@@ -165,29 +167,42 @@ ${paper.abstract || 'No abstract record provided in public repository.'}
   // Compute live token budget & determine if smart retrieval should trigger
   const { tokenBudget, isRetrievalActive } = useMemo(() => {
     const vaultText = getFullContextString();
+    const isStrict = typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true;
+    const effectiveInstructions = activeProfile?.customInstructions?.trim() || config.customSystemPrompt;
     const systemPrompt = constructSystemPrompt(
-      config.customSystemPrompt,
+      effectiveInstructions,
       selectedMode,
       config.webAccessEnabled,
-      vaultText
+      vaultText,
+      undefined,
+      isStrict
     );
     const activeModelName =
       config.aiProvider === AIProvider.GEMINI_DIRECT
         ? config.geminiModel
         : activeProfile?.model || 'gpt-4o';
 
+    const overrideLimit =
+      config.aiProvider === AIProvider.GEMINI_DIRECT
+        ? undefined
+        : activeProfile?.contextWindow;
+
     const budget = calculateTokenBudget(
       systemPrompt,
       vaultText,
       prompt,
       activeModelName,
-      config.forceSmartRetrieval
+      config.forceSmartRetrieval,
+      overrideLimit
     );
 
     return { tokenBudget: budget, isRetrievalActive: budget.isRAGActive };
   }, [
     getFullContextString,
     config.customSystemPrompt,
+    config.strictGrounding,
+    activeProfile?.customInstructions,
+    activeProfile?.contextWindow,
     selectedMode,
     config.webAccessEnabled,
     config.aiProvider,
@@ -275,6 +290,7 @@ ${paper.abstract || 'No abstract record provided in public repository.'}
           geminiModel: config.geminiModel,
           customSystemPrompt: config.customSystemPrompt,
           webAccessEnabled: config.webAccessEnabled,
+          strictGrounding: config.strictGrounding,
         },
         onChunk: (chunk) => {
           completeOutput += chunk;
@@ -559,7 +575,7 @@ ${paper.abstract || 'No abstract record provided in public repository.'}
             </div>
           </div>
 
-          {/* Augmentations: OER & Smart Retrieval Mode */}
+          {/* Augmentations: OER, Retrieval & Strict Grounding */}
           <div className="space-y-2">
             <button
               onClick={() => updateConfig({ webAccessEnabled: !config.webAccessEnabled })}
@@ -585,6 +601,31 @@ ${paper.abstract || 'No abstract record provided in public repository.'}
               />
             </button>
 
+            {/* Strict Grounding Anti-Hallucination Switcher */}
+            <button
+              onClick={() => updateConfig({ strictGrounding: !(typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true) })}
+              className={`w-full flex items-center justify-between px-3.5 py-2 rounded-lg border text-xs transition-all ${
+                (typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true)
+                  ? 'bg-cyberLime/10 border-cyberLime/40 text-white shadow-[0_0_10px_rgba(132,249,6,0.1)]'
+                  : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className={`w-3.5 h-3.5 ${(typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true) ? 'text-cyberLime' : 'text-gray-500'}`} />
+                <div className="text-left">
+                  <div className="font-medium">Strict Grounding (Anti-Hallucination)</div>
+                  <div className="text-[10px] opacity-60">
+                    {(typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true) ? 'Zero Extrapolation / No Implied Answers (T=0.15)' : 'Creative / Extrapolative Mode'}
+                  </div>
+                </div>
+              </div>
+              <div
+                className={`w-2.5 h-2.5 rounded-full border ${
+                  (typeof config.strictGrounding === 'boolean' ? config.strictGrounding : true) ? 'bg-cyberLime border-cyberLime' : 'bg-transparent border-gray-600'
+                }`}
+              />
+            </button>
+
             {/* Smart Retrieval Mode Switcher */}
             <button
               onClick={() => updateConfig({ forceSmartRetrieval: !config.forceSmartRetrieval })}
@@ -601,7 +642,7 @@ ${paper.abstract || 'No abstract record provided in public repository.'}
                     {isRetrievalActive ? 'Smart BM25 Retrieval Active' : 'Full Vault Mode'}
                   </div>
                   <div className="text-[9px] opacity-60">
-                    {isRetrievalActive ? 'Injecting Top-15 most relevant chunks' : 'Injecting 100% of enabled files'}
+                    {isRetrievalActive ? `Injecting Top-${tokenBudget.optimalChunkCount} most relevant chunks` : 'Injecting 100% of enabled files'}
                   </div>
                 </div>
               </div>
@@ -624,21 +665,29 @@ ${paper.abstract || 'No abstract record provided in public repository.'}
                 )}
                 <span>Injected Context</span>
               </span>
-              <span
-                className={
-                  tokenBudget.status === 'critical'
-                    ? 'text-red-400'
-                    : tokenBudget.status === 'warning'
-                    ? 'text-yellow-400'
-                    : 'text-cyberLime'
-                }
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(true)}
+                className="hover:underline flex items-center gap-1.5 transition-colors group"
+                title="Click to adjust model context window in Settings"
               >
-                ~{tokenBudget.injectedTokens.toLocaleString()} /{' '}
-                {tokenBudget.maxContextTokens >= 1000000
-                  ? `${Math.round(tokenBudget.maxContextTokens / 1000000)}M`
-                  : `${Math.round(tokenBudget.maxContextTokens / 1024)}k`}{' '}
-                ({tokenBudget.usagePercentage}%)
-              </span>
+                <span
+                  className={
+                    tokenBudget.status === 'critical'
+                      ? 'text-red-400'
+                      : tokenBudget.status === 'warning'
+                      ? 'text-yellow-400'
+                      : 'text-cyberLime'
+                  }
+                >
+                  ~{tokenBudget.injectedTokens.toLocaleString()} /{' '}
+                  {tokenBudget.maxContextTokens >= 1000000
+                    ? `${Math.round(tokenBudget.maxContextTokens / 1000000)}M`
+                    : `${Math.round(tokenBudget.maxContextTokens / 1024)}k`}{' '}
+                  ({tokenBudget.usagePercentage}%)
+                </span>
+                <Sliders className="w-3 h-3 text-gray-500 group-hover:text-cyberLime transition-colors" />
+              </button>
             </div>
 
             {/* Progress bar */}
@@ -662,13 +711,18 @@ ${paper.abstract || 'No abstract record provided in public repository.'}
               <span>
                 Vault Total: <strong className="text-gray-300">{tokenBudget.rawVaultTokens.toLocaleString()}</strong> tokens
               </span>
-              {isRetrievalActive ? (
-                <span className="text-blue-400 font-mono">
-                  BM25: Top-{tokenBudget.optimalChunkCount} chunks
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-gray-500">
+                  [{tokenBudget.maxContextTokens >= 1000000 ? '1M' : `${Math.round(tokenBudget.maxContextTokens / 1024)}k`} Window]
                 </span>
-              ) : (
-                <span className="text-cyberLime font-mono">100% Full Text</span>
-              )}
+                {isRetrievalActive ? (
+                  <span className="text-blue-400 font-mono">
+                    Top-{tokenBudget.optimalChunkCount} chunks
+                  </span>
+                ) : (
+                  <span className="text-cyberLime font-mono">100% Full Text</span>
+                )}
+              </div>
             </div>
 
             {/* 1-Click Gemini 1M Switcher button if vault exceeds model limit */}
