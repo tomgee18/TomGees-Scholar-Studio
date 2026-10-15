@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 Scholar Studio User Guide
+    url: https://github.com/tomgee18/TomGees-Scholar-Studio/blob/main/docs/USER_GUIDE.md
+    about: Read the in-depth prompt engineering, study modes, and Anki import walkthrough.
+  - name: 🏛️ Technical Architecture
+    url: https://github.com/tomgee18/TomGees-Scholar-Studio/blob/main/docs/ARCHITECTURE.md
+    about: Learn about the Tauri IPC, BM25 RAG engine, database schemas, and security design.
