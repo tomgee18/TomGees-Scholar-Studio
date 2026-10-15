@@ -8,6 +8,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    pool: 'threads',
+    server: {
+      deps: {
+        inline: ['undici'],
+      },
+    },
   },
   resolve: {
     alias: {
