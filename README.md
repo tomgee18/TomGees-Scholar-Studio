@@ -1,6 +1,7 @@
 # TomGee's Scholar Studio
 
 [![CI Quality Gate](https://github.com/tomgee18/TomGees-Scholar-Studio/actions/workflows/ci.yml/badge.svg)](https://github.com/tomgee18/TomGees-Scholar-Studio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.12-24C8D8?logo=tauri&logoColor=white)](https://tauri.app)
 [![React 19](https://img.shields.io/badge/React-19.2-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8_Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -106,6 +107,27 @@ npm run build
 
 ---
 
+## Windows Desktop Installation (FOSS)
+
+Pre-compiled standalone installers for Windows x64 are available in the [Releases](https://github.com/tomgee18/TomGees-Scholar-Studio/releases) section:
+
+- **NSIS Setup Installer:** `TomGees-Scholar-Studio_1.0.0_x64-setup.exe` (~1.87 MB)
+- **MSI Enterprise Package:** `TomGees-Scholar-Studio_1.0.0_x64_en-US.msi` (~2.36 MB)
+
+> [!NOTE]
+> **Windows SmartScreen Notice:**
+> Because this is a community Free and Open Source Software (FOSS) release without commercial corporate certificate signing, Windows Defender SmartScreen may display: *"Windows protected your PC — Unknown Publisher"*.
+> Click **"More info"** and then select **"Run anyway"**. You can verify the integrity of the binary against the official SHA-256 release checksums below.
+
+### Release Checksums (v1.0.0)
+
+| File | Size | SHA-256 Checksum |
+| :--- | :--- | :--- |
+| `TomGees-Scholar-Studio_1.0.0_x64-setup.exe` | 1.87 MB | `95f3d0a2b1227c57e7b65cd93063e9e2db86c4b62173ce0b089fbf271d5e74aa` |
+| `TomGees-Scholar-Studio_1.0.0_x64_en-US.msi` | 2.36 MB | `2d8d57d0a92a92339506eaeee455eb8e01c07275b1645a52c11137ad0cc64dea` |
+
+---
+
 ## Environment Variables
 
 Scholar Studio reads keys automatically from your operating system environment without storing them in browser `localStorage`:
@@ -131,4 +153,4 @@ OLLAMA_HOST=http://localhost:11434
 
 ## License
 
-Private / Personal Academic Suite — Created by TomGee.
+This project is open-source and released under the [MIT License](LICENSE) — free for academic, personal, and educational use. Developed by **TomGee**.
