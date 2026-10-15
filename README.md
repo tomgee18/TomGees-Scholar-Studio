@@ -2,6 +2,7 @@
 
 [![CI Quality Gate](https://github.com/tomgee18/TomGees-Scholar-Studio/actions/workflows/ci.yml/badge.svg)](https://github.com/tomgee18/TomGees-Scholar-Studio/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Wiki](https://img.shields.io/badge/Wiki-Documentation-blue.svg)](https://github.com/tomgee18/TomGees-Scholar-Studio/wiki)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.12-24C8D8?logo=tauri&logoColor=white)](https://tauri.app)
 [![React 19](https://img.shields.io/badge/React-19.2-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8_Strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -61,6 +62,7 @@ A local-first, offline-capable academic research suite and study engine designed
 
 ## Documentation Links
 
+- 📚 **[GitHub Project Wiki](https://github.com/tomgee18/TomGees-Scholar-Studio/wiki):** Web-accessible knowledge base automatically synced with official guides and architecture specs.
 - 📖 **[User Guide & Manual](docs/USER_GUIDE.md):** In-depth workflows, prompt engineering, study modes, and Anki import walkthrough.
 - 🏛️ **[Technical Architecture](docs/ARCHITECTURE.md):** Tauri v2 IPC, BM25 RAG engine, database schemas, code-splitting, and security protocol.
 

@@ -1,0 +1,67 @@
+name: Sync Documentation to GitHub Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/wiki-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    name: Sync to GitHub Wiki
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Repository
+        uses: actions/checkout@v4
+
+      - name: Stage Wiki Content
+        run: |
+          mkdir -p dist-wiki
+          
+          # Copy Home, Sidebar, and Footer
+          cp docs/wiki/Home.md dist-wiki/Home.md
+          cp docs/wiki/_Sidebar.md dist-wiki/_Sidebar.md
+          cp docs/wiki/_Footer.md dist-wiki/_Footer.md
+          
+          # Copy User Guide and Technical Architecture
+          cp docs/USER_GUIDE.md dist-wiki/User-Guide.md
+          cp docs/ARCHITECTURE.md dist-wiki/Architecture.md
+          
+          echo "Staged wiki files:"
+          ls -la dist-wiki/
+
+      - name: Clone and Update GitHub Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+          
+          echo "Cloning GitHub Wiki repository..."
+          if git clone "$WIKI_URL" wiki-repo 2>/dev/null; then
+            echo "Successfully cloned GitHub Wiki repository."
+            
+            # Copy staged files into cloned wiki repository
+            cp -r dist-wiki/* wiki-repo/
+            
+            cd wiki-repo
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            git add .
+            if git diff --staged --quiet; then
+              echo "Wiki is already up to date with docs/. No changes to commit."
+            else
+              git commit -m "docs(wiki): sync documentation from main branch [skip ci]"
+              git push origin master || git push origin main
+              echo "Successfully pushed updated documentation to GitHub Wiki!"
+            fi
+          else
+            echo "::warning title=GitHub Wiki Not Initialized::The GitHub Wiki repository for ${{ github.repository }} is not yet initialized or enabled. To enable it: go to GitHub -> Repository Settings -> Features -> enable 'Wikis', and click 'Create the first page'."
+          fi
