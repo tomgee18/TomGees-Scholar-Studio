@@ -17,6 +17,7 @@ interface ContextStoreType {
   documents: DocumentContext[];
   draftHistory: DraftHistoryItem[];
   addDocument: (file: File) => Promise<void>;
+  addRawDocument: (name: string, content: string, type?: 'md' | 'txt') => Promise<DocumentContext>;
   removeDocument: (id: string) => Promise<void>;
   toggleDocumentEnabled: (id: string) => Promise<void>;
   clearDocuments: () => Promise<void>;
@@ -284,6 +285,35 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
     setDocuments((prev) => [newDoc, ...prev]);
   }, []);
 
+  const addRawDocument = useCallback(
+    async (name: string, content: string, type: 'md' | 'txt' = 'md'): Promise<DocumentContext> => {
+      if (!content || content.trim().length === 0) {
+        throw new Error('Document content cannot be empty.');
+      }
+
+      const docId = generateId();
+      const newDoc: DocumentContext = {
+        id: docId,
+        name,
+        type,
+        content,
+        timestamp: Date.now(),
+        sizeBytes: new Blob([content]).size,
+        enabled: true,
+      };
+
+      await db.documents.put(newDoc);
+      const chunks = chunkDocumentText(docId, name, content);
+      if (chunks.length > 0) {
+        await db.chunks.bulkPut(chunks);
+      }
+
+      setDocuments((prev) => [newDoc, ...prev]);
+      return newDoc;
+    },
+    []
+  );
+
   const toggleDocumentEnabled = useCallback(async (id: string) => {
     setDocuments((prev) =>
       prev.map((doc) => {
@@ -338,6 +368,7 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         documents,
         draftHistory,
         addDocument,
+        addRawDocument,
         removeDocument,
         toggleDocumentEnabled,
         clearDocuments,

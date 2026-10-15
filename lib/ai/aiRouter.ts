@@ -53,3 +53,37 @@ export const routeAIRequest = async (params: RouterParams) => {
     throw new Error(`Invalid AI Provider: ${provider}`);
   }
 };
+
+/**
+ * Convenience helper to send multi-turn messages and return the complete response string.
+ */
+export const sendAIMessage = async (
+  messages: AIMessage[],
+  config: {
+    aiProvider: AIProvider;
+    activeProfileId: string;
+    profiles: OpenAIProfile[];
+    geminiApiKey: string;
+    geminiModel: string;
+  },
+  signal?: AbortSignal
+): Promise<string> => {
+  let fullText = '';
+  const activeProfile = config.profiles.find((p) => p.id === config.activeProfileId);
+
+  await routeAIRequest({
+    provider: config.aiProvider,
+    activeProfile,
+    messages,
+    config: {
+      geminiApiKey: config.geminiApiKey,
+      geminiModel: config.geminiModel,
+    },
+    onChunk: (chunk) => {
+      fullText += chunk;
+    },
+    signal,
+  });
+
+  return fullText;
+};

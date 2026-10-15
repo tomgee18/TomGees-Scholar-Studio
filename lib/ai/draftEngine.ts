@@ -1,5 +1,6 @@
-import { DraftMode, AIProvider, OpenAIProfile } from '../../types';
+import { DraftMode, AIProvider, OpenAIProfile, ScholarlyPaper } from '../../types';
 import { routeAIRequest } from './aiRouter';
+import { searchScholarlyLiterature, formatPapersForContext } from './scholarlyClient';
 
 interface EngineParams {
   mode: DraftMode;
@@ -14,6 +15,8 @@ interface EngineParams {
     webAccessEnabled: boolean;
   };
   onChunk: (text: string) => void;
+  onStatusUpdate?: (status: string) => void;
+  onGroundedPapers?: (papers: ScholarlyPaper[]) => void;
   signal?: AbortSignal;
 }
 
@@ -79,7 +82,8 @@ export const constructSystemPrompt = (
   customSystemPrompt: string,
   mode: DraftMode,
   webAccessEnabled: boolean,
-  contextData: string
+  contextData: string,
+  scholarlyEvidenceBlock?: string
 ): string => {
   const modeInstruction =
     mode === DraftMode.THESIS
@@ -93,9 +97,11 @@ export const constructSystemPrompt = (
   let webInstruction = '';
   if (webAccessEnabled) {
     webInstruction = `
-[WEB ACCESS & OPEN SCHOLARSHIP: ENABLED]
-- Prioritize Open Educational Resources (OER) such as OpenStax, MIT OpenCourseWare, arXiv, bioRxiv, and peer-reviewed journals.
-- Explicitly cite source methodologies and reference materials.
+[OPEN SCHOLARSHIP & WEB GROUNDING: ACTIVE]
+- Integrate the verified academic literature provided below from Crossref, arXiv, and Semantic Scholar.
+- Cite authentic authors and publication years inline (e.g. Author et al., 2024).
+- Hyperlink genuine DOIs (e.g. [DOI: 10.xxxx/...](https://doi.org/10.xxxx/...)) directly in the text and bibliography.
+- Do NOT fabricate or hallucinate citations; use the verified sources provided.
 `;
   }
 
@@ -106,20 +112,64 @@ ${modeInstruction}
 
 ${webInstruction}
 
+${scholarlyEvidenceBlock || ''}
+
 --- CONTEXT VAULT DATA ---
-${contextData || 'No local documents provided. Rely on mode instructions and internal knowledge base.'}
+${contextData || 'No local documents provided. Rely on mode instructions, retrieved literature, and internal knowledge base.'}
 --------------------------
 `.trim();
 };
 
 export const runDraftEngine = async (params: EngineParams) => {
-  const { mode, userDirective, contextData, config, onChunk, signal } = params;
+  const {
+    mode,
+    userDirective,
+    contextData,
+    config,
+    onChunk,
+    onStatusUpdate,
+    onGroundedPapers,
+    signal,
+  } = params;
+
+  let scholarlyEvidenceBlock = '';
+
+  // When web grounding is enabled, perform live open academic retrieval
+  if (config.webAccessEnabled) {
+    try {
+      onStatusUpdate?.('Querying Crossref, arXiv & Semantic Scholar for literature...');
+      
+      // Formulate a clean keyword query from userDirective
+      const queryTerms = userDirective
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 3 && !['generate', 'please', 'write', 'create', 'chapter', 'draft'].includes(w.toLowerCase()))
+        .slice(0, 8)
+        .join(' ');
+
+      const query = queryTerms || userDirective.slice(0, 60);
+
+      groundedPapers = await searchScholarlyLiterature(query, 5);
+
+      if (groundedPapers.length > 0) {
+        onGroundedPapers?.(groundedPapers);
+        scholarlyEvidenceBlock = formatPapersForContext(groundedPapers);
+        onStatusUpdate?.(`Grounded with ${groundedPapers.length} verified academic papers. Synthesizing draft...`);
+      } else {
+        onStatusUpdate?.('No external matches found. Proceeding with Context Vault...');
+      }
+    } catch (err) {
+      console.warn('Live scholarly retrieval failed, falling back to local vault:', err);
+      onStatusUpdate?.('Scholarly retrieval timed out. Proceeding with local vault...');
+    }
+  }
 
   const finalSystemPrompt = constructSystemPrompt(
     config.customSystemPrompt,
     mode,
     config.webAccessEnabled,
-    contextData
+    contextData,
+    scholarlyEvidenceBlock
   );
 
   await routeAIRequest({

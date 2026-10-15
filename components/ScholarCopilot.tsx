@@ -14,10 +14,16 @@ import {
   RotateCcw,
   Bot,
   User,
+  Globe,
+  BookOpen,
+  ShieldAlert,
+  CheckCircle2,
+  Cpu,
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
 import { AIProvider, ChatMessage, OpenAIProfile } from '../types';
 import { routeAIRequest } from '../lib/ai/aiRouter';
+import { searchScholarlyLiterature, formatPapersForContext } from '../lib/ai/scholarlyClient';
 import { db } from '../lib/db';
 import { MarkdownRenderer } from './ui/MarkdownRenderer';
 import { getModelContextLimit, getOptimalChunkCount } from '../lib/ai/tokenManager';
@@ -30,9 +36,35 @@ interface ScholarCopilotProps {
   onAppendToDraft?: (text: string) => void;
 }
 
+const AGENTIC_SKILL_CHIPS = [
+  {
+    label: 'Lit Discovery',
+    icon: BookOpen,
+    color: 'text-cyberLime border-cyberLime/30 bg-cyberLime/10',
+    prompt: 'Execute Literature Discovery: Search arXiv, Crossref, and Semantic Scholar for foundational and cutting-edge papers on our core topic. Synthesize key theoretical findings, methodological approaches, and research gaps with authentic DOIs.',
+  },
+  {
+    label: 'Ground Citations',
+    icon: CheckCircle2,
+    color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+    prompt: 'Execute Citation & DOI Grounding: Audit claims in my active draft, locate authentic peer-reviewed studies from Crossref and arXiv, and provide revised sentences with verified author-year citations and clickable DOI links.',
+  },
+  {
+    label: 'Counterarguments',
+    icon: ShieldAlert,
+    color: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
+    prompt: 'Execute Counterargument & Critique Search: Find published peer-reviewed papers presenting opposing viewpoints, contradictory empirical findings, or theoretical critiques to our thesis argument to fortify our dissertation defense.',
+  },
+  {
+    label: 'Methodology Audit',
+    icon: Cpu,
+    color: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
+    prompt: 'Execute Methodology & Benchmark Audit: Search scholarly literature for established empirical frameworks, standard benchmark datasets, and evaluation metrics used in peer-reviewed dissertations on this subject.',
+  },
+];
+
 const QUICK_PROMPT_CHIPS = [
   { label: 'Critique Draft', prompt: 'Critique my active draft. Identify any weak arguments, logical gaps, or unsupported claims, and suggest rigorous academic enhancements.' },
-  { label: 'Find Counterarguments', prompt: 'What are the strongest academic counterarguments or alternative interpretations to the position argued in my current draft?' },
   { label: 'Fact-Check vs Sources', prompt: 'Examine my draft against the source materials in our vault. Point out any factual inconsistencies or missing citations.' },
   { label: 'Suggest Next Section', prompt: 'Based on the trajectory and arguments of my draft so far, outline the next logical section with academic headers and key points.' },
   { label: 'Simplify & Polish', prompt: 'Review my draft for readability, clarity, and conciseness while retaining graduate-level academic prose.' },
@@ -61,6 +93,7 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
   const [streamingResponse, setStreamingResponse] = useState('');
   const [includeDraft, setIncludeDraft] = useState(true);
   const [searchVault, setSearchVault] = useState(true);
+  const [searchOpenWeb, setSearchOpenWeb] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
@@ -195,10 +228,30 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
       }
     }
 
-    const copilotSystemPrompt = `You are the "Scholar Copilot", a peer-level academic research collaborator and co-author.
-Your role is to assist the scholar with critique, source synthesis, argumentation, and precise drafting.
+    // Step 3: Open Scholarly Web Grounding (arXiv, Crossref, Semantic Scholar)
+    if (searchOpenWeb) {
+      try {
+        const webQuery = prompt
+          .replace(/[^\w\s]/g, ' ')
+          .split(/\s+/)
+          .filter((w) => w.length > 3 && !['execute', 'please', 'suggest', 'review', 'critique', 'draft', 'write'].includes(w.toLowerCase()))
+          .slice(0, 6)
+          .join(' ') || prompt.slice(0, 50);
+
+        const papers = await searchScholarlyLiterature(webQuery, 4);
+        if (papers.length > 0) {
+          contextBlock += `\n\n${formatPapersForContext(papers)}\n`;
+          sourcesUsed.push(...papers.map((p) => `${p.title.slice(0, 30)}... (${p.source.toUpperCase()})`));
+        }
+      } catch (err) {
+        console.warn('Copilot open web literature search failed:', err);
+      }
+    }
+
+    const copilotSystemPrompt = `You are the "Scholar Copilot", a peer-level academic research collaborator, literature investigator, and co-author.
+Your role is to assist the scholar with critique, source synthesis, argumentation, citation verification, and precise drafting.
 Be concise, rigorous, scholarly, and insightful. When asked to write or improve text, provide drop-in ready prose.
-${contextBlock ? `Refer directly to the provided Active Draft and Vault Sources where relevant.` : ''}`;
+${contextBlock ? `Refer directly to the provided Active Draft, Vault Sources, and Verified Scholarly Literature where relevant. Cite authentic DOIs when referencing external literature.` : ''}`;
 
     // Compile multi-turn history
     const historyPayload = messages.slice(-10).map((m) => ({
@@ -417,6 +470,21 @@ ${contextBlock ? `Refer directly to the provided Active Draft and Vault Sources 
             ({documents.filter((d) => d.enabled !== false).length})
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setSearchOpenWeb(!searchOpenWeb)}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-colors ${
+            searchOpenWeb
+              ? 'bg-cyberLime/20 border-cyberLime/40 text-cyberLime'
+              : 'bg-white/5 border-white/10 text-gray-400 hover:text-gray-300'
+          }`}
+          title="Toggle live scholarly grounding via arXiv, Crossref, and Semantic Scholar"
+        >
+          <Globe className="w-3 h-3" />
+          <span>Scholarly Web</span>
+          <span className="text-[10px] opacity-70">(arXiv/Crossref)</span>
+        </button>
       </div>
 
       {/* Action Notification Banner */}
@@ -430,32 +498,61 @@ ${contextBlock ? `Refer directly to the provided Active Draft and Vault Sources 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 text-xs scrollbar-thin scrollbar-thumb-white/10">
         {messages.length === 0 && !streamingResponse && (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4 py-8 text-gray-400 space-y-4">
+          <div className="h-full flex flex-col items-center justify-center text-center px-4 py-6 text-gray-400 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
               <Sparkles className="w-6 h-6" />
             </div>
             <div>
-              <p className="font-medium text-white text-sm">How can I assist your writing?</p>
+              <p className="font-medium text-white text-sm">Scholar Copilot Active</p>
               <p className="text-xs text-gray-400 mt-1 max-w-[280px]">
-                Ask for critiques, alternative arguments, counter-evidence, or section continuations.
+                Ground your thesis with authentic peer-reviewed literature, audit citations, or explore counterarguments.
               </p>
             </div>
 
-            {/* Quick Starters */}
+            {/* Agentic Skills Palette */}
             <div className="w-full flex flex-col gap-2 pt-2 text-left">
-              <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
-                Quick Academic Prompts
+              <span className="text-[10px] font-mono font-bold text-cyberLime uppercase tracking-wider flex items-center gap-1.5">
+                <Globe className="w-3 h-3" /> Agentic Research Skills
               </span>
-              {QUICK_PROMPT_CHIPS.map((chip, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSendMessage(chip.prompt)}
-                  className="w-full text-left p-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 hover:border-indigo-500/30 text-gray-300 transition-all text-xs"
-                >
-                  <span className="font-semibold text-indigo-300 block">{chip.label}</span>
-                  <span className="text-[11px] text-gray-400 line-clamp-1">{chip.prompt}</span>
-                </button>
-              ))}
+              <div className="grid grid-cols-2 gap-2">
+                {AGENTIC_SKILL_CHIPS.map((skill, idx) => {
+                  const Icon = skill.icon;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendMessage(skill.prompt)}
+                      className={`text-left p-2.5 rounded-xl border transition-all text-xs hover:scale-[1.02] active:scale-[0.98] ${skill.color}`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold mb-1">
+                        <Icon className="w-3.5 h-3.5" />
+                        <span className="truncate">{skill.label}</span>
+                      </div>
+                      <p className="text-[10px] opacity-75 line-clamp-2">
+                        {skill.prompt.split(':')[1]?.trim() || skill.label}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Starters */}
+            <div className="w-full flex flex-col gap-2 pt-1 text-left">
+              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">
+                Quick Drafting Prompts
+              </span>
+              <div className="space-y-1.5">
+                {QUICK_PROMPT_CHIPS.map((chip, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSendMessage(chip.prompt)}
+                    className="w-full text-left p-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 hover:border-indigo-500/30 text-gray-300 transition-all text-xs"
+                  >
+                    <span className="font-medium text-indigo-300 block text-xs">{chip.label}</span>
+                    <span className="text-[10px] text-gray-400 line-clamp-1">{chip.prompt}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -551,15 +648,30 @@ ${contextBlock ? `Refer directly to the provided Active Draft and Vault Sources 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Prompt Chips (when conversation has messages) */}
+      {/* Quick Prompt & Skills Chips (when conversation has messages) */}
       {messages.length > 0 && (
         <div className="px-4 py-1.5 border-t border-white/5 bg-black/10 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {AGENTIC_SKILL_CHIPS.map((skill, idx) => {
+            const Icon = skill.icon;
+            return (
+              <button
+                key={`skill-${idx}`}
+                onClick={() => handleSendMessage(skill.prompt)}
+                disabled={isGenerating}
+                className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyberLime/10 hover:bg-cyberLime/20 border border-cyberLime/30 text-[10px] text-cyberLime font-medium transition-colors disabled:opacity-50"
+                title={skill.prompt}
+              >
+                <Icon className="w-2.5 h-2.5" />
+                <span>{skill.label}</span>
+              </button>
+            );
+          })}
           {QUICK_PROMPT_CHIPS.map((chip, idx) => (
             <button
-              key={idx}
+              key={`prompt-${idx}`}
               onClick={() => handleSendMessage(chip.prompt)}
               disabled={isGenerating}
-              className="flex-shrink-0 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-[10px] text-gray-300 hover:text-white transition-colors disabled:opacity-50"
+              className="flex-shrink-0 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-[10px] text-gray-300 hover:text-white transition-colors disabled:opacity-50"
             >
               {chip.label}
             </button>

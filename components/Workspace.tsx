@@ -16,12 +16,16 @@ import {
   AlertTriangle,
   Zap,
   HelpCircle,
+  ExternalLink,
+  BookmarkPlus,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
 import { runDraftEngine, constructSystemPrompt } from '../lib/ai/draftEngine';
 import { calculateTokenBudget } from '../lib/ai/tokenManager';
 import { PrimaryButton, GlassCard } from './ui/GlassComponents';
-import { DraftingState, DraftMode, AIProvider, DraftHistoryItem } from '../types';
+import { DraftingState, DraftMode, AIProvider, DraftHistoryItem, ScholarlyPaper } from '../types';
 import { SettingsModal } from './SettingsModal';
 import { DraftHistoryDrawer } from './DraftHistoryDrawer';
 import { MarkdownRenderer } from './ui/MarkdownRenderer';
@@ -41,6 +45,7 @@ export const Workspace = () => {
     activeProfile,
     resolveProfileKey,
     saveDraftToHistory,
+    addRawDocument,
   } = useStore();
   const { addToast } = useToast();
   const [prompt, setPrompt] = useState('');
@@ -52,6 +57,10 @@ export const Workspace = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [latestExaminerReport, setLatestExaminerReport] = useState('');
+  const [groundedPapers, setGroundedPapers] = useState<ScholarlyPaper[]>([]);
+  const [generationStatus, setGenerationStatus] = useState<string>('');
+  const [savedPaperIds, setSavedPaperIds] = useState<Set<string>>(new Set());
+  const [isPapersExpanded, setIsPapersExpanded] = useState<boolean>(true);
 
   const [state, setState] = useState<DraftingState>({
     isGenerating: false,
@@ -120,6 +129,28 @@ export const Workspace = () => {
       output: prev.output ? `${prev.output}\n\n${text}` : text,
     }));
     addToast('Appended to draft', 'success');
+  };
+
+  const handleSavePaperToVault = async (paper: ScholarlyPaper) => {
+    try {
+      const paperContent = `# ${paper.title}
+
+- **Authors**: ${paper.authors.join(', ')}
+- **Year**: ${paper.year || 'Unknown'}
+- **Source**: ${paper.journal || paper.source.toUpperCase()}
+${paper.doi ? `- **DOI**: https://doi.org/${paper.doi}` : ''}
+${paper.url ? `- **URL**: ${paper.url}` : ''}
+
+## Abstract
+${paper.abstract || 'No abstract record provided in public repository.'}
+`;
+      const docName = `${paper.title.slice(0, 40).replace(/[^\w\s-]/g, '')}.md`;
+      await addRawDocument(docName, paperContent, 'md');
+      setSavedPaperIds((prev) => new Set(prev).add(paper.id));
+      addToast(`Saved "${paper.title.slice(0, 30)}..." to Context Vault`, 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to save paper to vault', 'error');
+    }
   };
 
   useEffect(() => {
@@ -215,6 +246,8 @@ export const Workspace = () => {
     abortControllerRef.current = new AbortController();
     setState((prev) => ({ ...prev, isGenerating: true, error: null, output: '' }));
     setLatestExaminerReport('');
+    setGroundedPapers([]);
+    setGenerationStatus('');
 
     let completeOutput = '';
 
@@ -252,10 +285,19 @@ export const Workspace = () => {
             }));
           }
         },
+        onStatusUpdate: (status) => {
+          if (isMounted.current) setGenerationStatus(status);
+        },
+        onGroundedPapers: (papers) => {
+          if (isMounted.current) setGroundedPapers(papers);
+        },
         signal: abortControllerRef.current.signal,
       });
 
-      if (isMounted.current) setState((prev) => ({ ...prev, isGenerating: false }));
+      if (isMounted.current) {
+        setState((prev) => ({ ...prev, isGenerating: false }));
+        setGenerationStatus('');
+      }
 
       if (completeOutput.trim()) {
         const wordCount = completeOutput.trim().split(/\s+/).length;
@@ -279,7 +321,10 @@ export const Workspace = () => {
       }
     } catch (err: any) {
       if (err.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
-        if (isMounted.current) setState((prev) => ({ ...prev, isGenerating: false }));
+        if (isMounted.current) {
+          setState((prev) => ({ ...prev, isGenerating: false }));
+          setGenerationStatus('');
+        }
         return;
       }
 
@@ -290,6 +335,7 @@ export const Workspace = () => {
           isGenerating: false,
           error: errorMsg,
         }));
+        setGenerationStatus('');
         addToast(errorMsg, 'error');
       }
     }
@@ -517,7 +563,7 @@ export const Workspace = () => {
           <div className="space-y-2">
             <button
               onClick={() => updateConfig({ webAccessEnabled: !config.webAccessEnabled })}
-              className={`w-full flex items-center justify-between px-3.5 py-2 rounded-lg border text-xs transition-all ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-xs transition-all ${
                 config.webAccessEnabled
                   ? 'bg-cyberLime/10 border-cyberLime/50 text-white shadow-[0_0_10px_rgba(132,249,6,0.1)]'
                   : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
@@ -526,7 +572,10 @@ export const Workspace = () => {
               <div className="flex items-center gap-2.5">
                 <Globe className={`w-3.5 h-3.5 ${config.webAccessEnabled ? 'text-cyberLime' : 'text-gray-500'}`} />
                 <div className="text-left">
-                  <div className="font-medium">Open Scholarship (OER)</div>
+                  <div className="font-medium">Scholarly Web Grounding</div>
+                  <div className="text-[10px] opacity-60">
+                    {config.webAccessEnabled ? 'Live arXiv, Crossref & Semantic Scholar' : '100% Offline Vault Mode'}
+                  </div>
                 </div>
               </div>
               <div
@@ -706,6 +755,13 @@ export const Workspace = () => {
         >
           {state.output || state.isGenerating ? (
             <div className="max-w-4xl mx-auto animate-in fade-in duration-500 slide-in-from-bottom-4 print:max-w-none">
+              {state.isGenerating && generationStatus && (
+                <div className="mb-3 px-4 py-2.5 rounded-xl bg-cyberLime/10 border border-cyberLime/30 text-cyberLime text-xs font-mono flex items-center gap-2.5 animate-pulse shadow-[0_0_15px_rgba(132,249,6,0.15)] print:hidden">
+                  <Globe className="w-4 h-4 text-cyberLime animate-spin" />
+                  <span className="font-semibold">{generationStatus}</span>
+                </div>
+              )}
+
               <div className="flex justify-end mb-2 print:hidden">
                 <button
                   onClick={() => setState((prev) => ({ ...prev, output: '' }))}
@@ -721,6 +777,123 @@ export const Workspace = () => {
                 }`}
               >
                 <MarkdownRenderer content={state.output} isGenerating={state.isGenerating} />
+
+                {/* Verified Scholarly Literature Grounding Panel */}
+                {groundedPapers.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-white/10 print:hidden">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-cyberLime" />
+                        <h4 className="text-sm font-bold text-white tracking-wide">
+                          Verified Academic Literature ({groundedPapers.length} Grounded Papers)
+                        </h4>
+                        <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                          Crossref • arXiv • Semantic Scholar
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setIsPapersExpanded(!isPapersExpanded)}
+                        className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors"
+                      >
+                        <span>{isPapersExpanded ? 'Collapse' : 'Expand'}</span>
+                        {isPapersExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+
+                    {isPapersExpanded && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {groundedPapers.map((paper) => {
+                          const isSaved = savedPaperIds.has(paper.id);
+                          return (
+                            <div
+                              key={paper.id}
+                              className="p-3.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-cyberLime/30 transition-all flex flex-col justify-between gap-2.5 group"
+                            >
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded font-bold border ${
+                                    paper.source === 'crossref'
+                                      ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
+                                      : paper.source === 'arxiv'
+                                      ? 'bg-red-500/15 border-red-500/30 text-red-300'
+                                      : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                                  }`}>
+                                    {paper.source}
+                                  </span>
+                                  {paper.year && (
+                                    <span className="text-[10px] font-mono text-gray-400">
+                                      {paper.year}
+                                    </span>
+                                  )}
+                                </div>
+                                <h5 className="text-xs font-semibold text-white group-hover:text-cyberLime transition-colors line-clamp-2 leading-snug">
+                                  {paper.title}
+                                </h5>
+                                <p className="text-[10px] text-gray-400 line-clamp-1">
+                                  {paper.authors.slice(0, 3).join(', ')}{paper.authors.length > 3 ? ' et al.' : ''}
+                                </p>
+                                {paper.abstract && (
+                                  <p className="text-[10px] text-gray-400 line-clamp-2 italic opacity-80 pt-0.5">
+                                    "{paper.abstract}"
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[10px]">
+                                {paper.doi ? (
+                                  <a
+                                    href={`https://doi.org/${paper.doi}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-cyberLime hover:underline flex items-center gap-1 font-mono"
+                                  >
+                                    <span>DOI: {paper.doi.slice(0, 18)}...</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                ) : paper.url ? (
+                                  <a
+                                    href={paper.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-cyberLime hover:underline flex items-center gap-1 font-mono"
+                                  >
+                                    <span>arXiv Link</span>
+                                    <ExternalLink className="w-2.5 h-2.5" />
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-500">Indexed Record</span>
+                                )}
+
+                                <button
+                                  onClick={() => handleSavePaperToVault(paper)}
+                                  disabled={isSaved}
+                                  className={`px-2 py-1 rounded-md text-[10px] flex items-center gap-1 transition-all ${
+                                    isSaved
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 cursor-default'
+                                      : 'bg-white/5 hover:bg-cyberLime/20 text-gray-300 hover:text-cyberLime border border-white/10 hover:border-cyberLime/40'
+                                  }`}
+                                  title={isSaved ? 'Already saved in Vault' : 'Save paper abstract to Context Vault'}
+                                >
+                                  {isSaved ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      <span>Saved</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <BookmarkPlus className="w-3 h-3" />
+                                      <span>Save to Vault</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Socratic Interactive Grading Component */}
                 {selectedMode === DraftMode.EXAM_MASTERY && state.output && !state.isGenerating && (

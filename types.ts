@@ -57,6 +57,35 @@ export interface DraftingState {
   isGenerating: boolean;
   output: string;
   error: string | null;
+  groundedPapers?: ScholarlyPaper[];
+}
+
+export interface ScholarlyPaper {
+  id: string;
+  title: string;
+  authors: string[];
+  year?: number | string;
+  abstract?: string;
+  doi?: string;
+  url?: string;
+  journal?: string;
+  source: 'crossref' | 'arxiv' | 'semanticscholar';
+  citationCount?: number;
+}
+
+export enum AcademicSkillType {
+  LITERATURE_DISCOVERY = 'LITERATURE_DISCOVERY',
+  CITATION_GROUNDING = 'CITATION_GROUNDING',
+  COUNTERARGUMENT_FINDER = 'COUNTERARGUMENT_FINDER',
+  METHODOLOGY_FINDER = 'METHODOLOGY_FINDER',
+}
+
+export interface AgenticSkillResult {
+  skill: AcademicSkillType;
+  query: string;
+  papers: ScholarlyPaper[];
+  summary: string;
+  timestamp: number;
 }
 
 export interface AIMessage {

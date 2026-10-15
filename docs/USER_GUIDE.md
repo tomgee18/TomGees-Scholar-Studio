@@ -10,10 +10,11 @@ Welcome to **TomGee's Scholar Studio**, a local-first, offline-capable academic 
 3. [The Context Vault & Document Ingestion](#3-the-context-vault--document-ingestion)
 4. [The 4 Scholarly Engine Modes](#4-the-4-scholarly-engine-modes)
 5. [Interactive Socratic Exam Simulator](#5-interactive-socratic-exam-simulator)
-6. [Scholar Copilot Collaborative Chat](#6-scholar-copilot-collaborative-chat)
-7. [Modular Export Hub & Anki Integration](#7-modular-export-hub--anki-integration)
-8. [Global Keyboard Shortcuts](#8-global-keyboard-shortcuts)
-9. [Frequently Asked Questions & Troubleshooting](#9-frequently-asked-questions--troubleshooting)
+6. [Scholar Copilot Collaborative Chat & Agentic Skills Suite](#6-scholar-copilot-collaborative-chat--agentic-skills-suite)
+7. [Live Open Scholarly Web Grounding](#7-live-open-scholarly-web-grounding)
+8. [Modular Export Hub & Rich-Text PDF Printing](#8-modular-export-hub--rich-text-pdf-printing)
+9. [Global Keyboard Shortcuts](#9-global-keyboard-shortcuts)
+10. [Frequently Asked Questions & Troubleshooting](#10-frequently-asked-questions--troubleshooting)
 
 ---
 
@@ -89,31 +90,45 @@ When running in **Exam & Mastery Mode**, the interactive Socratic Grading Panel 
 
 ---
 
-## 6. Scholar Copilot Collaborative Chat
+## 6. Scholar Copilot Collaborative Chat & Agentic Skills Suite
 Open the Copilot sidebar by pressing <kbd>Alt + C</kbd> or clicking the **Copilot** button in the header bar.
-- **Context Awareness:** Automatically sees the active draft and searches the Context Vault using BM25 relevance scoring.
+- **Triple Context Awareness:** Toggle the active draft, your document vault RAG, and live scholarly web retrieval concurrently.
+- **Agentic Academic Skills Palette:**
+  - `📚 Lit Discovery`: Searches arXiv, Crossref, and Semantic Scholar for seminal papers, theoretical foundations, and research gaps.
+  - `🔍 Ground Citations`: Scans claims and locates verified studies with authentic DOIs.
+  - `🛡️ Counterarguments`: Uncovers dissenting empirical literature and critiques to fortify thesis defense.
+  - `⚙️ Methodology Audit`: Catalogs established empirical designs, statistical frameworks, and benchmark datasets.
 - **In-Chat Model Switcher:** Switch models (e.g. from DeepSeek to Gemini or Groq) in real-time.
 - **Direct Editor Actions:**
   - `Insert at Cursor`: Pastes assistant response directly into the editor.
   - `Append to Draft`: Appends text to the end of the document.
   - `Copy`: Copies formatted Markdown.
-- **Quick Academic Chips:** Click chips like *"Critique Draft"*, *"Find Counterarguments"*, *"Check Against Sources"*, or *"Suggest Next Section"*.
 
 ---
 
-## 7. Modular Export Hub & Anki Integration
+## 7. Live Open Scholarly Web Grounding
+Scholar Studio features a zero-API-key open academic retrieval pipeline:
+- **Zero Third-Party Cost or Keys:** Directly queries **Crossref REST API** (peer-reviewed journal DOIs), **arXiv API** (STEM & preprint repositories), and **Semantic Scholar** without requiring commercial search API keys.
+- **Authentic DOI Verification:** Completely prevents hallucinated citations by grounding drafts in verified publication records.
+- **1-Click Save to Vault:** Any retrieved academic paper can be saved directly to your Context Library Vault with 1 click, automatically parsing its abstract, authors, and DOI for subsequent local BM25 RAG retrieval.
+- **Full Offline Protection:** Toggle the "Scholarly Web Grounding" switch OFF at any time to guarantee 100% offline local processing strictly from your Context Vault.
+
+---
+
+## 8. Modular Export Hub & Rich-Text PDF Printing
 Click **Export Hub** in the top bar to extract targeted deliverables:
 
-1. **Student Mock Exam (Questions Only):** Generates a clean question paper with ruled answer spaces, completely removing solutions and rubrics for self-testing.
-2. **Marking Scheme & Rubrics:** Isolates model solutions, key points, and grading weights for review.
-3. **Anki Flashcard TSV Deck (`#separator:tab`):** Formats flashcards for direct import into Anki:
-   - Open Anki → File → Import → select `.tsv` file.
-   - Field 1 maps to Front, Field 2 maps to Back.
-4. **Examiner Diagnostic Report:** Exports the Socratic grade breakdown and examiner commentary to PDF, Markdown, or text.
+1. **Rich-Text Academic PDF:** Converts Markdown to semantic HTML typography (formal serif font, styled tables, code callouts, institutional header) and triggers the native Windows Print/PDF dialog without popup blockers.
+2. **Student Mock Exam (Questions Only):** Generates a clean question paper with ruled answer spaces, completely removing solutions and rubrics for self-testing.
+3. **Marking Scheme & Rubrics:** Isolates model solutions, key points, and grading weights for post-exam review.
+4. **Anki Flashcard TSV Deck (`#separator:tab`):** Formats flashcards for direct import into Anki:
+   - Open Anki → File → Import → select `.txt` / `.tsv` file.
+   - Field 1 maps to Front, Field 2 maps to Back, Field 3 to Tags.
+5. **Examiner Diagnostic Report:** Exports Socratic grade breakdowns and examiner evaluations to PDF, Markdown, or text.
 
 ---
 
-## 8. Global Keyboard Shortcuts
+## 9. Global Keyboard Shortcuts
 
 | Shortcut | Action | Scope |
 | :--- | :--- | :--- |
@@ -126,13 +141,13 @@ Click **Export Hub** in the top bar to extract targeted deliverables:
 
 ---
 
-## 9. Frequently Asked Questions & Troubleshooting
+## 10. Frequently Asked Questions & Troubleshooting
 
 ### Why am I seeing an API Key error?
 Ensure your environment variable is set on your host machine (e.g., `setx GEMINI_API_KEY "your_key"` on Windows, or in `.env`). In desktop mode, restart the app to allow the native Rust process to read updated environment variables.
 
 ### How does the app handle large 500-page textbooks?
-Scholar Studio splits large files into ~400-word chunks. The BM25 algorithm ranks and retrieves the top-15 most relevant chunks matching your directive, avoiding token limit errors.
+Scholar Studio splits large files into ~400-word chunks. The BM25 algorithm dynamically scales chunk retrieval based on your model's ceiling (e.g., 40 chunks on Gemini 1M, 25 chunks on DeepSeek 64k), avoiding context window budget overflows.
 
 ### Can I run local offline models?
-Yes. Install [Ollama](https://ollama.ai) or [LM Studio](https://lmstudio.ai), launch your local model (e.g., `ollama run llama3`), and select the **Ollama Local** profile in Settings.
+Yes. Install [Ollama](https://ollama.ai) or [LM Studio](https://lmstudio.ai), launch your local model (e.g., `ollama run llama3`), and select the **Ollama Local** profile in Settings. Toggling Scholarly Web Grounding OFF enables a completely air-gapped study experience.
