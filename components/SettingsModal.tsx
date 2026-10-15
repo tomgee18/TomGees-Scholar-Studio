@@ -115,6 +115,10 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
       return;
     }
 
+    if (profileForm) {
+      updateProfile(profileForm.id, profileForm);
+    }
+
     const id = 'custom-' + Date.now().toString(36);
     const newProf: OpenAIProfile = {
       id,
@@ -177,6 +181,9 @@ export const SettingsModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: (
                   <button
                     key={p.id}
                     onClick={() => {
+                      if (profileForm && profileForm.id !== p.id) {
+                        updateProfile(profileForm.id, profileForm);
+                      }
                       setSelectedProfileId(p.id);
                       updateConfig({ activeProfileId: p.id });
                     }}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import {
   DocumentContext,
   AppConfig,
@@ -52,30 +52,60 @@ const getSystemEnvMap = (): Record<string, string> => {
   return {};
 };
 
+const saveConfigToDualStorage = (configToSave: AppConfig) => {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_CONFIG_KEY, JSON.stringify(configToSave));
+  } catch (e) {
+    console.warn('Failed to persist configuration to localStorage', e);
+  }
+  db.settings.put({ key: 'app_config', value: configToSave }).catch((err) => {
+    console.warn('Failed to persist configuration to db.settings:', err);
+  });
+};
+
 export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => {
   const [documents, setDocuments] = useState<DocumentContext[]>([]);
   const [draftHistory, setDraftHistory] = useState<DraftHistoryItem[]>([]);
   const [isStorageReady, setIsStorageReady] = useState(false);
+  const isConfigLoadedRef = useRef(false);
 
   const [config, setConfig] = useState<AppConfig>(() => {
     const envMap = getSystemEnvMap();
-    const initialProfiles = DEFAULT_OPENAI_PROFILES.map((p) => {
-      const envKey = p.envKeyName ? envMap[p.envKeyName] || '' : '';
+
+    // Synchronously check localStorage to prevent flash of default configuration
+    let savedParsed: Partial<AppConfig> | null = null;
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
+      if (saved) {
+        savedParsed = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Failed to read config from localStorage on init', e);
+    }
+
+    const defaultMerged = DEFAULT_OPENAI_PROFILES.map((defaultP) => {
+      const savedP = (savedParsed?.profiles || []).find((p: OpenAIProfile) => p.id === defaultP.id);
+      const envKey = defaultP.envKeyName ? envMap[defaultP.envKeyName] || '' : '';
       return {
-        ...p,
-        apiKey: p.apiKey || envKey,
+        ...defaultP,
+        ...(savedP || {}),
+        apiKey: savedP?.apiKey || envKey,
       };
     });
 
+    const customProfiles = (savedParsed?.profiles || []).filter(
+      (p: OpenAIProfile) => !DEFAULT_OPENAI_PROFILES.some((d) => d.id === p.id)
+    );
+
     return {
-      aiProvider: AIProvider.OPENAI_COMPATIBLE,
-      activeProfileId: 'deepseek',
-      profiles: initialProfiles,
-      geminiApiKey: envMap.GEMINI_API_KEY || (import.meta.env.VITE_GEMINI_API_KEY as string) || '',
-      geminiModel: 'gemini-2.0-flash',
-      customSystemPrompt: DEFAULT_SYSTEM_PROMPT,
-      webAccessEnabled: false,
-      forceSmartRetrieval: false,
+      aiProvider: savedParsed?.aiProvider || AIProvider.OPENAI_COMPATIBLE,
+      activeProfileId: savedParsed?.activeProfileId || 'deepseek',
+      profiles: [...defaultMerged, ...customProfiles],
+      geminiApiKey: savedParsed?.geminiApiKey || envMap.GEMINI_API_KEY || (import.meta.env.VITE_GEMINI_API_KEY as string) || '',
+      geminiModel: savedParsed?.geminiModel || 'gemini-2.0-flash',
+      customSystemPrompt: savedParsed?.customSystemPrompt || DEFAULT_SYSTEM_PROMPT,
+      webAccessEnabled: typeof savedParsed?.webAccessEnabled === 'boolean' ? savedParsed.webAccessEnabled : false,
+      forceSmartRetrieval: typeof savedParsed?.forceSmartRetrieval === 'boolean' ? savedParsed.forceSmartRetrieval : false,
     };
   });
 
@@ -96,12 +126,25 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
           }
         }
 
-        const savedConfig = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
-        if (savedConfig) {
-          const parsed = JSON.parse(savedConfig);
+        // 1. Dual-source hydration: Dexie IndexedDB (primary disk storage) + localStorage (fallback)
+        let configSource: Partial<AppConfig> | null = null;
+        try {
+          const dexieSetting = await db.settings.get('app_config');
+          if (dexieSetting?.value) {
+            configSource = dexieSetting.value;
+          } else {
+            const savedConfig = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
+            if (savedConfig) {
+              configSource = JSON.parse(savedConfig);
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to read config from db.settings / localStorage:', err);
+        }
 
+        if (configSource) {
           const mergedProfiles = DEFAULT_OPENAI_PROFILES.map((defaultP) => {
-            const savedP = (parsed.profiles || []).find((p: OpenAIProfile) => p.id === defaultP.id);
+            const savedP = (configSource?.profiles || []).find((p: OpenAIProfile) => p.id === defaultP.id);
             const envKey = defaultP.envKeyName ? envMap[defaultP.envKeyName] || '' : '';
             return {
               ...defaultP,
@@ -110,17 +153,23 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
             };
           });
 
-          const customProfiles = (parsed.profiles || []).filter(
+          const customProfiles = (configSource.profiles || []).filter(
             (p: OpenAIProfile) => !DEFAULT_OPENAI_PROFILES.some((d) => d.id === p.id)
           );
 
-          setConfig((prev) => ({
-            ...prev,
-            ...parsed,
-            profiles: [...mergedProfiles, ...customProfiles],
-            geminiApiKey: parsed.geminiApiKey || envMap.GEMINI_API_KEY || prev.geminiApiKey,
-          }));
+          setConfig((prev) => {
+            const hydrated: AppConfig = {
+              ...prev,
+              ...configSource,
+              profiles: [...mergedProfiles, ...customProfiles],
+              geminiApiKey: configSource?.geminiApiKey || envMap.GEMINI_API_KEY || prev.geminiApiKey,
+            };
+            saveConfigToDualStorage(hydrated);
+            return hydrated;
+          });
         }
+
+        isConfigLoadedRef.current = true;
 
         const loadedDocs = await db.documents.orderBy('timestamp').reverse().toArray();
         setDocuments(
@@ -147,6 +196,7 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         setIsStorageReady(true);
       } catch (err) {
         console.error('Failed to initialize local database storage', err);
+        isConfigLoadedRef.current = true;
         setIsStorageReady(true);
       }
     };
@@ -155,42 +205,61 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_CONFIG_KEY, JSON.stringify(config));
-    } catch (e) {
-      console.warn('Failed to persist configuration', e);
-    }
+    if (!isConfigLoadedRef.current) return;
+    saveConfigToDualStorage(config);
   }, [config]);
 
   const updateConfig = useCallback((newConfig: Partial<AppConfig>) => {
-    setConfig((prev) => ({ ...prev, ...newConfig }));
+    setConfig((prev) => {
+      const next = { ...prev, ...newConfig };
+      if (isConfigLoadedRef.current) {
+        saveConfigToDualStorage(next);
+      }
+      return next;
+    });
   }, []);
 
   const activeProfile = config.profiles.find((p) => p.id === config.activeProfileId) || config.profiles[0];
 
   const updateProfile = useCallback((profileId: string, updates: Partial<OpenAIProfile>) => {
-    setConfig((prev) => ({
-      ...prev,
-      profiles: prev.profiles.map((p) => (p.id === profileId ? { ...p, ...updates } : p)),
-    }));
+    setConfig((prev) => {
+      const next = {
+        ...prev,
+        profiles: prev.profiles.map((p) => (p.id === profileId ? { ...p, ...updates } : p)),
+      };
+      if (isConfigLoadedRef.current) {
+        saveConfigToDualStorage(next);
+      }
+      return next;
+    });
   }, []);
 
   const addProfile = useCallback((profile: OpenAIProfile) => {
-    setConfig((prev) => ({
-      ...prev,
-      profiles: [...prev.profiles, profile],
-      activeProfileId: profile.id,
-    }));
+    setConfig((prev) => {
+      const next = {
+        ...prev,
+        profiles: [...prev.profiles, profile],
+        activeProfileId: profile.id,
+      };
+      if (isConfigLoadedRef.current) {
+        saveConfigToDualStorage(next);
+      }
+      return next;
+    });
   }, []);
 
   const deleteProfile = useCallback((profileId: string) => {
     setConfig((prev) => {
       const filtered = prev.profiles.filter((p) => p.id !== profileId);
-      return {
+      const next = {
         ...prev,
         profiles: filtered,
         activeProfileId: prev.activeProfileId === profileId ? filtered[0]?.id || '' : prev.activeProfileId,
       };
+      if (isConfigLoadedRef.current) {
+        saveConfigToDualStorage(next);
+      }
+      return next;
     });
   }, []);
 

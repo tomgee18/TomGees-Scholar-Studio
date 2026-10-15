@@ -149,7 +149,7 @@ export const runDraftEngine = async (params: EngineParams) => {
 
       const query = queryTerms || userDirective.slice(0, 60);
 
-      groundedPapers = await searchScholarlyLiterature(query, 5);
+      const groundedPapers = await searchScholarlyLiterature(query, 5);
 
       if (groundedPapers.length > 0) {
         onGroundedPapers?.(groundedPapers);
