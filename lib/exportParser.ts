@@ -2,6 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ScholarlyPaper, DocumentContext } from '../types';
 
 export interface ParsedSections {
   fullText: string;
@@ -146,6 +147,186 @@ export const downloadTextFile = (content: string, filename: string, mimeType = '
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+/**
+ * Extracts structured examination questions from an Exam Mastery study pack or markdown output
+ * for interactive multi-question Examination Sessions.
+ */
+export const extractExamQuestions = (markdownContent: string): string[] => {
+  if (!markdownContent || !markdownContent.trim()) {
+    return [];
+  }
+
+  const sections = extractExportSections(markdownContent);
+  const sourceRegion = sections.examPaper || markdownContent;
+  const lines = sourceRegion.split('\n');
+  const questions: string[] = [];
+
+  const numberedQuestionRegex =
+    /^(?:\*\*|###?\s*)?(?:Question\s+\d+|Q\d+|\d+)[.):*\s]+\s*(.+)/i;
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+
+    // Skip section headers or answer lines
+    if (
+      /^(?:###?\s*(?:SECTION|PART|Master Mock|Official Marking|Part\s+[A-Z]))/i.test(trimmed) ||
+      /^(?:Answer|A\d*|Marking|Rubric)[:\s]/i.test(trimmed)
+    ) {
+      continue;
+    }
+
+    const match = trimmed.match(numberedQuestionRegex);
+    if (match && match[1]) {
+      const cleaned = match[1]
+        .replace(/^\*\*|\*\*$/g, '')
+        .replace(/^[-–—:\s]+/, '')
+        .trim();
+
+      if (cleaned.length >= 15 && !questions.includes(cleaned)) {
+        questions.push(cleaned);
+      }
+    }
+  }
+
+  if (questions.length === 0) {
+    // Fallback: look for lines ending with '?' across the markdown
+    for (const rawLine of markdownContent.split('\n')) {
+      const cleaned = rawLine
+        .trim()
+        .replace(/^[-*>\d.)\s*]+/, '')
+        .replace(/\*\*/g, '')
+        .trim();
+      if (cleaned.endsWith('?') && cleaned.length >= 20 && !questions.includes(cleaned)) {
+        questions.push(cleaned);
+      }
+    }
+  }
+
+  return questions.slice(0, 15);
+};
+
+const sanitizeBibKey = (raw: string, fallbackIndex: number): string => {
+  const cleaned = raw.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  return cleaned.slice(0, 24) || `ref${fallbackIndex + 1}`;
+};
+
+const escapeBibValue = (val: string): string => {
+  return val.replace(/[{}]/g, '').replace(/"/g, "''").trim();
+};
+
+/**
+ * Generates a standard BibTeX (.bib) bibliography from Grounded Papers and active Context Vault sources.
+ */
+export const generateBibTeX = (
+  papers: ScholarlyPaper[] = [],
+  vaultDocs: DocumentContext[] = []
+): string => {
+  const entries: string[] = [];
+  const usedKeys = new Set<string>();
+
+  const ensureUniqueKey = (baseKey: string): string => {
+    let key = baseKey;
+    let suffix = 2;
+    while (usedKeys.has(key)) {
+      key = `${baseKey}_${suffix}`;
+      suffix++;
+    }
+    usedKeys.add(key);
+    return key;
+  };
+
+  papers.forEach((paper, idx) => {
+    const firstAuthorLast =
+      paper.authors?.[0]?.split(/\s+/).pop() || 'scholar';
+    const yearStr = String(paper.year || new Date().getFullYear());
+    const titleWord = (paper.title || 'work').split(/\s+/)[0] || 'work';
+    const citeKey = ensureUniqueKey(
+      sanitizeBibKey(`${firstAuthorLast}${yearStr}${titleWord}`, idx)
+    );
+
+    const entryType = paper.journal ? 'article' : 'misc';
+    const fields: string[] = [
+      `  author = {${escapeBibValue((paper.authors || ['Unknown Author']).join(' and '))}}`,
+      `  title = {{${escapeBibValue(paper.title || 'Untitled Scholarly Work')}}}`,
+      `  year = {${escapeBibValue(yearStr)}}`,
+    ];
+
+    if (paper.journal) {
+      fields.push(`  journal = {${escapeBibValue(paper.journal)}}`);
+    }
+    if (paper.doi) {
+      fields.push(`  doi = {${escapeBibValue(paper.doi)}}`);
+    }
+    if (paper.url) {
+      fields.push(`  url = {${escapeBibValue(paper.url)}}`);
+    }
+    fields.push(`  note = {Indexed via ${paper.source}}`);
+
+    entries.push(`@${entryType}{${citeKey},\n${fields.join(',\n')}\n}`);
+  });
+
+  const activeVaultDocs = vaultDocs.filter((d) => d.enabled !== false);
+  activeVaultDocs.forEach((doc, idx) => {
+    const yearStr = String(new Date(doc.timestamp || Date.now()).getFullYear());
+    const baseName = doc.name.replace(/\.[^.]+$/, '');
+    const citeKey = ensureUniqueKey(
+      sanitizeBibKey(`vault_${baseName}_${yearStr}`, papers.length + idx)
+    );
+
+    const fields: string[] = [
+      `  author = {Context Vault Source}`,
+      `  title = {{${escapeBibValue(doc.name)}}}`,
+      `  year = {${yearStr}}`,
+      `  howpublished = {TomGee's Scholar Studio Context Vault (${doc.type.toUpperCase()})}`,
+    ];
+
+    entries.push(`@misc{${citeKey},\n${fields.join(',\n')}\n}`);
+  });
+
+  return entries.join('\n\n');
+};
+
+/**
+ * Generates an APA 7th-edition formatted Markdown reference list from Grounded Papers and Vault sources.
+ */
+export const generateApaReferences = (
+  papers: ScholarlyPaper[] = [],
+  vaultDocs: DocumentContext[] = []
+): string => {
+  const lines: string[] = ['# References & Citation Provenance', ''];
+
+  if (papers.length > 0) {
+    lines.push('## Peer-Reviewed Literature (Grounded Papers)', '');
+    papers.forEach((p) => {
+      const authors = (p.authors || ['Unknown Author']).join(', ');
+      const year = p.year || 'n.d.';
+      const journalPart = p.journal ? ` *${p.journal}*.` : '';
+      const doiPart = p.doi
+        ? ` https://doi.org/${p.doi.replace(/^https?:\/\/doi\.org\//i, '')}`
+        : p.url
+          ? ` ${p.url}`
+          : '';
+      lines.push(`- ${authors} (${year}). ${p.title}.${journalPart}${doiPart}`);
+    });
+    lines.push('');
+  }
+
+  const activeDocs = vaultDocs.filter((d) => d.enabled !== false);
+  if (activeDocs.length > 0) {
+    lines.push('## Primary Context Vault Sources', '');
+    activeDocs.forEach((d) => {
+      const dateStr = new Date(d.timestamp || Date.now()).toLocaleDateString();
+      lines.push(
+        `- **${d.name}** (${d.type.toUpperCase()}, indexed ${dateStr}) — *Context Vault Primary Source*.`
+      );
+    });
+    lines.push('');
+  }
+
+  return lines.join('\n').trim();
 };
 
 /**

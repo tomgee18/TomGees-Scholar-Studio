@@ -19,10 +19,19 @@ import {
   ShieldAlert,
   CheckCircle2,
   Cpu,
+  BookmarkPlus,
+  ExternalLink,
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
-import { AIProvider, ChatMessage, OpenAIProfile } from '../types';
+import {
+  AIProvider,
+  AcademicSkillType,
+  ChatMessage,
+  OpenAIProfile,
+  ScholarlyPaper,
+} from '../types';
 import { routeAIRequest } from '../lib/ai/aiRouter';
+import { ACADEMIC_SKILLS } from '../lib/ai/academicSkills';
 import { searchScholarlyLiterature, formatPapersForContext } from '../lib/ai/scholarlyClient';
 import { db } from '../lib/db';
 import { MarkdownRenderer } from './ui/MarkdownRenderer';
@@ -38,36 +47,60 @@ interface ScholarCopilotProps {
 
 const AGENTIC_SKILL_CHIPS = [
   {
+    skillType: AcademicSkillType.LITERATURE_DISCOVERY,
     label: 'Lit Discovery',
     icon: BookOpen,
     color: 'text-cyberLime border-cyberLime/30 bg-cyberLime/10',
-    prompt: 'Execute Literature Discovery: Search arXiv, Crossref, and Semantic Scholar for foundational and cutting-edge papers on our core topic. Synthesize key theoretical findings, methodological approaches, and research gaps with authentic DOIs.',
+    prompt:
+      'Execute Literature Discovery: Search arXiv, Crossref, and Semantic Scholar for foundational and cutting-edge papers on our core topic. Synthesize key theoretical findings, methodological approaches, and research gaps with authentic DOIs.',
   },
   {
+    skillType: AcademicSkillType.CITATION_GROUNDING,
     label: 'Ground Citations',
     icon: CheckCircle2,
     color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
-    prompt: 'Execute Citation & DOI Grounding: Audit claims in my active draft, locate authentic peer-reviewed studies from Crossref and arXiv, and provide revised sentences with verified author-year citations and clickable DOI links.',
+    prompt:
+      'Execute Citation & DOI Grounding: Audit claims in my active draft, locate authentic peer-reviewed studies from Crossref and arXiv, and provide revised sentences with verified author-year citations and clickable DOI links.',
   },
   {
+    skillType: AcademicSkillType.COUNTERARGUMENT_FINDER,
     label: 'Counterarguments',
     icon: ShieldAlert,
     color: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
-    prompt: 'Execute Counterargument & Critique Search: Find published peer-reviewed papers presenting opposing viewpoints, contradictory empirical findings, or theoretical critiques to our thesis argument to fortify our dissertation defense.',
+    prompt:
+      'Execute Counterargument & Critique Search: Find published peer-reviewed papers presenting opposing viewpoints, contradictory empirical findings, or theoretical critiques to our thesis argument to fortify our dissertation defense.',
   },
   {
+    skillType: AcademicSkillType.METHODOLOGY_FINDER,
     label: 'Methodology Audit',
     icon: Cpu,
     color: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
-    prompt: 'Execute Methodology & Benchmark Audit: Search scholarly literature for established empirical frameworks, standard benchmark datasets, and evaluation metrics used in peer-reviewed dissertations on this subject.',
+    prompt:
+      'Execute Methodology & Benchmark Audit: Search scholarly literature for established empirical frameworks, standard benchmark datasets, and evaluation metrics used in peer-reviewed dissertations on this subject.',
   },
 ];
 
 const QUICK_PROMPT_CHIPS = [
-  { label: 'Critique Draft', prompt: 'Critique my active draft. Identify any weak arguments, logical gaps, or unsupported claims, and suggest rigorous academic enhancements.' },
-  { label: 'Fact-Check vs Sources', prompt: 'Examine my draft against the source materials in our vault. Point out any factual inconsistencies or missing citations.' },
-  { label: 'Suggest Next Section', prompt: 'Based on the trajectory and arguments of my draft so far, outline the next logical section with academic headers and key points.' },
-  { label: 'Simplify & Polish', prompt: 'Review my draft for readability, clarity, and conciseness while retaining graduate-level academic prose.' },
+  {
+    label: 'Critique Draft',
+    prompt:
+      'Critique my active draft. Identify any weak arguments, logical gaps, or unsupported claims, and suggest rigorous academic enhancements.',
+  },
+  {
+    label: 'Fact-Check vs Sources',
+    prompt:
+      'Examine my draft against the source materials in our vault. Point out any factual inconsistencies or missing citations.',
+  },
+  {
+    label: 'Suggest Next Section',
+    prompt:
+      'Based on the trajectory and arguments of my draft so far, outline the next logical section with academic headers and key points.',
+  },
+  {
+    label: 'Simplify & Polish',
+    prompt:
+      'Review my draft for readability, clarity, and conciseness while retaining graduate-level academic prose.',
+  },
 ];
 
 export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
@@ -80,13 +113,17 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
   const {
     config,
     activeProfile,
+    activeWorkspaceId,
     resolveProfileKey,
     getRetrievedContextString,
     documents,
+    addRawDocument,
     updateConfig,
   } = useStore();
 
-  const [conversationId, setConversationId] = useState<string>('default-thread');
+  const [conversationId, setConversationId] = useState<string>(
+    `workspace-${activeWorkspaceId || 'default'}`
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -95,6 +132,7 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
   const [searchVault, setSearchVault] = useState(true);
   const [searchOpenWeb, setSearchOpenWeb] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [savedPaperIds, setSavedPaperIds] = useState<Record<string, boolean>>({});
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   // In-chat provider/profile selection
@@ -104,6 +142,11 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Scope conversationId when activeWorkspaceId changes
+  useEffect(() => {
+    setConversationId(`workspace-${activeWorkspaceId || 'default'}`);
+  }, [activeWorkspaceId]);
 
   // Sync provider choices when global config changes
   useEffect(() => {
@@ -156,6 +199,20 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
     }
   };
 
+  const handleSavePaperToVault = async (paper: ScholarlyPaper) => {
+    try {
+      const safeTitle = paper.title.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 45);
+      const docName = `Paper_${paper.year || 'ref'}_${safeTitle}.md`;
+      const markdownContent = `# ${paper.title}\n\n- **Authors:** ${(paper.authors || []).join(', ')}\n- **Year:** ${paper.year || 'N/A'}\n- **Venue:** ${paper.journal || paper.source.toUpperCase()}\n${paper.doi ? `- **DOI:** https://doi.org/${paper.doi}\n` : ''}${paper.url ? `- **URL:** ${paper.url}\n` : ''}\n## Abstract\n\n${paper.abstract || 'No abstract available.'}\n`;
+      await addRawDocument(docName, markdownContent, 'md');
+      setSavedPaperIds((prev) => ({ ...prev, [paper.id]: true }));
+      setActionNotice(`Saved "${paper.title.slice(0, 32)}..." to Context Vault!`);
+      setTimeout(() => setActionNotice(null), 2500);
+    } catch (err) {
+      console.error('Failed to save paper to vault:', err);
+    }
+  };
+
   const handleClearHistory = async () => {
     if (!window.confirm('Clear all conversation history in this thread?')) return;
     try {
@@ -168,7 +225,7 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
   };
 
   const handleNewThread = () => {
-    const newId = `thread-${Date.now()}`;
+    const newId = `workspace-${activeWorkspaceId}-thread-${Date.now()}`;
     setConversationId(newId);
     setMessages([]);
     setStreamingResponse('');
@@ -176,18 +233,20 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
     setTimeout(() => setActionNotice(null), 2000);
   };
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const prompt = (textToSend || inputText).trim();
-    if (!prompt || isGenerating) return;
+  const handleSendMessage = async (textToSend?: string, skillType?: AcademicSkillType) => {
+    const rawPrompt = (textToSend || inputText).trim();
+    if (!rawPrompt || isGenerating) return;
 
     setInputText('');
     const userMsgId = `msg-user-${Date.now()}`;
     const userMsg: ChatMessage = {
       id: userMsgId,
       conversationId,
+      workspaceId: activeWorkspaceId,
       role: 'user',
-      content: prompt,
+      content: rawPrompt,
       timestamp: Date.now(),
+      skillUsed: skillType,
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -200,13 +259,20 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
     abortControllerRef.current = abortController;
 
     const sourcesUsed: string[] = [];
+    let discoveredPapers: ScholarlyPaper[] = [];
     let contextBlock = '';
+
+    const activeSkillDef = skillType ? ACADEMIC_SKILLS[skillType] : undefined;
+    const effectiveUserPrompt = activeSkillDef
+      ? activeSkillDef.promptTemplate(rawPrompt, activeDraftText)
+      : rawPrompt;
 
     // Step 1: Draft Awareness
     if (includeDraft && activeDraftText.trim()) {
-      const draftExcerpt = activeDraftText.length > 5000 
-        ? activeDraftText.slice(0, 5000) + '\n\n[...draft truncated for context efficiency...]' 
-        : activeDraftText;
+      const draftExcerpt =
+        activeDraftText.length > 5000
+          ? activeDraftText.slice(0, 5000) + '\n\n[...draft truncated for context efficiency...]'
+          : activeDraftText;
       contextBlock += `\n\n=== USER ACTIVE DRAFT ===\n${draftExcerpt}\n=== END ACTIVE DRAFT ===\n`;
     }
 
@@ -216,9 +282,10 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
         const targetModelName =
           chatProvider === AIProvider.GEMINI_DIRECT
             ? config.geminiModel
-            : (config.profiles.find((p) => p.id === chatProfileId) || activeProfile)?.model || 'default-model';
+            : (config.profiles.find((p) => p.id === chatProfileId) || activeProfile)?.model ||
+              'default-model';
         const dynamicChunks = getOptimalChunkCount(getModelContextLimit(targetModelName));
-        const retrieved = await getRetrievedContextString(prompt, dynamicChunks);
+        const retrieved = await getRetrievedContextString(rawPrompt, dynamicChunks);
         if (retrieved.trim()) {
           contextBlock += `\n\n=== RETRIEVED VAULT SOURCES ===\n${retrieved}\n=== END VAULT SOURCES ===\n`;
           sourcesUsed.push(...documents.filter((d) => d.enabled !== false).map((d) => d.name));
@@ -229,19 +296,44 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
     }
 
     // Step 3: Open Scholarly Web Grounding (arXiv, Crossref, Semantic Scholar)
-    if (searchOpenWeb) {
+    if (searchOpenWeb || skillType) {
       try {
-        const webQuery = prompt
-          .replace(/[^\w\s]/g, ' ')
-          .split(/\s+/)
-          .filter((w) => w.length > 3 && !['execute', 'please', 'suggest', 'review', 'critique', 'draft', 'write'].includes(w.toLowerCase()))
-          .slice(0, 6)
-          .join(' ') || prompt.slice(0, 50);
+        const querySource =
+          skillType && activeDraftText.trim()
+            ? `${rawPrompt} ${activeDraftText.slice(0, 200)}`
+            : rawPrompt;
+        const webQuery =
+          querySource
+            .replace(/[^\w\s]/g, ' ')
+            .split(/\s+/)
+            .filter(
+              (w) =>
+                w.length > 3 &&
+                ![
+                  'execute',
+                  'please',
+                  'suggest',
+                  'review',
+                  'critique',
+                  'draft',
+                  'write',
+                  'search',
+                  'arxiv',
+                  'crossref',
+                  'semantic',
+                  'scholar',
+                ].includes(w.toLowerCase())
+            )
+            .slice(0, 6)
+            .join(' ') || rawPrompt.slice(0, 50);
 
         const papers = await searchScholarlyLiterature(webQuery, 4);
         if (papers.length > 0) {
+          discoveredPapers = papers;
           contextBlock += `\n\n${formatPapersForContext(papers)}\n`;
-          sourcesUsed.push(...papers.map((p) => `${p.title.slice(0, 30)}... (${p.source.toUpperCase()})`));
+          sourcesUsed.push(
+            ...papers.map((p) => `${p.title.slice(0, 30)}... (${p.source.toUpperCase()})`)
+          );
         }
       } catch (err) {
         console.warn('Copilot open web literature search failed:', err);
@@ -268,8 +360,8 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
       typeof config.strictGrounding === 'boolean'
         ? config.strictGrounding
         : typeof targetProfile?.strictGrounding === 'boolean'
-        ? targetProfile.strictGrounding
-        : false;
+          ? targetProfile.strictGrounding
+          : false;
 
     const strictGroundingDirective = isStrictGrounding
       ? `\n[STRICT FACTUAL GROUNDING: NO IMPLIED ANSWERS]
@@ -277,7 +369,8 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
 - Do NOT provide implied, guessed, or extrapolated answers from pre-trained priors. If information is missing from the provided sources, explicitly state: "[Source Gap: Not in provided materials]".`
       : '';
 
-    const effectiveInstructions = targetProfile?.customInstructions?.trim() || config.customSystemPrompt;
+    const effectiveInstructions =
+      targetProfile?.customInstructions?.trim() || config.customSystemPrompt;
 
     const copilotSystemPrompt = `${effectiveInstructions}
 
@@ -294,8 +387,8 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
     }));
 
     const finalUserContent = contextBlock
-      ? `${prompt}\n\n[Context Injected Below for Reference]${contextBlock}`
-      : prompt;
+      ? `${effectiveUserPrompt}\n\n[Context Injected Below for Reference]${contextBlock}`
+      : effectiveUserPrompt;
 
     const fullMessages = [
       { role: 'system' as const, content: copilotSystemPrompt },
@@ -326,10 +419,13 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
       const assistantMsg: ChatMessage = {
         id: assistantMsgId,
         conversationId,
+        workspaceId: activeWorkspaceId,
         role: 'assistant',
         content: accumulatedText,
         timestamp: Date.now(),
         sources: sourcesUsed.length > 0 ? sourcesUsed : undefined,
+        groundedPapers: discoveredPapers.length > 0 ? discoveredPapers : undefined,
+        skillUsed: skillType,
         modelUsed: modelName,
         providerUsed: chatProvider,
       };
@@ -344,6 +440,7 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
         const errorMsg: ChatMessage = {
           id: errorMsgId,
           conversationId,
+          workspaceId: activeWorkspaceId,
           role: 'assistant',
           content: `⚠️ **Generation Error**: ${err?.message || 'Failed to generate response. Please check API keys and connection.'}`,
           timestamp: Date.now(),
@@ -524,7 +621,8 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
             <div>
               <p className="font-medium text-white text-sm">Scholar Copilot Active</p>
               <p className="text-xs text-gray-400 mt-1 max-w-[280px]">
-                Ground your thesis with authentic peer-reviewed literature, audit citations, or explore counterarguments.
+                Ground your thesis with authentic peer-reviewed literature, audit citations, or
+                explore counterarguments.
               </p>
             </div>
 
@@ -539,7 +637,7 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
                   return (
                     <button
                       key={idx}
-                      onClick={() => handleSendMessage(skill.prompt)}
+                      onClick={() => handleSendMessage(skill.prompt, skill.skillType)}
                       className={`text-left p-2.5 rounded-xl border transition-all text-xs hover:scale-[1.02] active:scale-[0.98] ${skill.color}`}
                     >
                       <div className="flex items-center gap-1.5 font-bold mb-1">
@@ -591,6 +689,11 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
                 <>
                   <Bot className="w-3 h-3 text-indigo-400" />
                   <span className="text-indigo-300 font-mono">{msg.modelUsed || 'Scholar AI'}</span>
+                  {msg.skillUsed && (
+                    <span className="px-1.5 py-0.2 rounded bg-cyberLime/15 text-cyberLime border border-cyberLime/30 text-[9px] font-mono">
+                      {ACADEMIC_SKILLS[msg.skillUsed]?.badge || 'Skill'}
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -608,6 +711,73 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
                 <MarkdownRenderer content={msg.content} />
               )}
             </div>
+
+            {/* Grounded Papers Cards inside Copilot Message */}
+            {msg.role === 'assistant' &&
+              msg.groundedPapers &&
+              msg.groundedPapers.length > 0 && (
+                <div className="w-full mt-2 space-y-1.5 bg-black/40 border border-cyberLime/20 rounded-xl p-2.5">
+                  <div className="text-[10px] font-mono text-cyberLime uppercase tracking-wider flex items-center gap-1.5">
+                    <Globe className="w-3 h-3" />
+                    <span>Grounded Literature ({msg.groundedPapers.length})</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {msg.groundedPapers.map((paper) => {
+                      const isSaved = Boolean(savedPaperIds[paper.id]);
+                      return (
+                        <div
+                          key={paper.id}
+                          className="p-2 rounded-lg bg-white/[0.03] border border-white/5 flex flex-col gap-1"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-[11px] font-medium text-white line-clamp-1">
+                              {paper.title}
+                            </span>
+                            <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded bg-white/10 text-gray-300 shrink-0">
+                              {paper.source}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 truncate">
+                            {(paper.authors || []).slice(0, 2).join(', ')} ({paper.year || 'n.d.'})
+                          </div>
+                          <div className="flex items-center justify-end gap-1.5 pt-1">
+                            {paper.url && (
+                              <a
+                                href={paper.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[10px] text-gray-300 flex items-center gap-1"
+                              >
+                                <ExternalLink className="w-2.5 h-2.5" />Source
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleSavePaperToVault(paper)}
+                              disabled={isSaved}
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 transition-colors ${
+                                isSaved
+                                  ? 'bg-cyberLime/20 text-cyberLime border border-cyberLime/30'
+                                  : 'bg-cyberLime/10 hover:bg-cyberLime/20 text-cyberLime border border-cyberLime/25'
+                              }`}
+                            >
+                              {isSaved ? (
+                                <>
+                                  <Check className="w-2.5 h-2.5" /> Saved
+                                </>
+                              ) : (
+                                <>
+                                  <BookmarkPlus className="w-2.5 h-2.5" /> Save to Vault
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
             {/* Assistant Response Actions */}
             {msg.role === 'assistant' && (
@@ -675,7 +845,7 @@ ${contextBlock ? `\nRefer directly to the provided Active Draft, Vault Sources, 
             return (
               <button
                 key={`skill-${idx}`}
-                onClick={() => handleSendMessage(skill.prompt)}
+                onClick={() => handleSendMessage(skill.prompt, skill.skillType)}
                 disabled={isGenerating}
                 className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyberLime/10 hover:bg-cyberLime/20 border border-cyberLime/30 text-[10px] text-cyberLime font-medium transition-colors disabled:opacity-50"
                 title={skill.prompt}

@@ -1,5 +1,11 @@
 import Dexie, { type Table } from 'dexie';
-import { DocumentContext, DraftHistoryItem, DocumentChunk, ChatMessage } from '../types';
+import {
+  DocumentContext,
+  DraftHistoryItem,
+  DocumentChunk,
+  ChatMessage,
+  ResearchWorkspace,
+} from '../types';
 
 export interface SettingRecord {
   key: string;
@@ -12,6 +18,7 @@ export class ScholarDatabase extends Dexie {
   chunks!: Table<DocumentChunk, string>;
   chatMessages!: Table<ChatMessage, string>;
   settings!: Table<SettingRecord, string>;
+  workspaces!: Table<ResearchWorkspace, string>;
 
   constructor() {
     super('TomGeesScholarDB');
@@ -40,6 +47,14 @@ export class ScholarDatabase extends Dexie {
       chunks: 'id, documentId, docName, chunkIndex',
       chatMessages: 'id, conversationId, role, timestamp',
       settings: 'key',
+    });
+    this.version(6).stores({
+      documents: 'id, name, type, timestamp, enabled, workspaceId',
+      drafts: 'id, mode, timestamp, provider, model, workspaceId',
+      chunks: 'id, documentId, docName, chunkIndex',
+      chatMessages: 'id, conversationId, role, timestamp, workspaceId',
+      settings: 'key',
+      workspaces: 'id, name, createdAt, updatedAt',
     });
   }
 }

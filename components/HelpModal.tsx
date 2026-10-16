@@ -156,40 +156,40 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
                     <div className="flex items-center gap-2 text-cyberLime font-semibold text-xs">
                       <span className="w-5 h-5 rounded-full bg-cyberLime/20 flex items-center justify-center text-[11px]">1</span>
-                      Load Your Context Vault
+                      Research Workspaces & Vault (.pdf, .docx, .md)
                     </div>
                     <p className="text-gray-400">
-                      Drag & drop PDFs, text files, syllabus notes, and lecture transcripts into the left sidebar. Files are chunked and indexed client-side into IndexedDB.
+                      Organize courses or theses into isolated <strong>Research Workspaces</strong>. Drag & drop PDFs, Word (<code>.docx</code>), Markdown, or text files into the Vault, or export/restore portable <code>.scholar.json</code> Vault Snapshots.
                     </p>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
                     <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs">
                       <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[11px]">2</span>
-                      Choose Your Scholar Mode
+                      Dual-Mode Manuscript Canvas
                     </div>
                     <p className="text-gray-400">
-                      Switch between <strong>Exam & Mastery</strong>, <strong>Thesis & Dissertation</strong>, <strong>Literature Review</strong>, or <strong>Custom Scholar</strong> mode.
+                      Switch seamlessly between <strong>Preview</strong>, <strong>Edit Canvas</strong>, and <strong>Split Studio</strong>. Highlight any passage to invoke AI inline actions (<em>Cite Claim</em>, <em>Expand with Vault</em>, <em>Academic Polish</em>) or click <code>[Source: ...]</code> badges to inspect provenance.
                     </p>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
                     <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs">
                       <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-[11px]">3</span>
-                      Socratic Grading Simulator
+                      Multi-Question Exam Queue & Viva Voce
                     </div>
                     <p className="text-gray-400">
-                      In Exam Mode, answer generated practice questions in the Interactive Simulator to receive instant automated scoring (0–100) and rubric critique.
+                      Step through discrete questions (<code>Q1..QN</code>), track per-question scores & Session Mastery average, and defend your reasoning in a 1-turn <strong>Viva Voce Oral Probe</strong>.
                     </p>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
                     <div className="flex items-center gap-2 text-purple-400 font-semibold text-xs">
                       <span className="w-5 h-5 rounded-full bg-purple-500/20 flex items-center justify-center text-[11px]">4</span>
-                      Scholar Copilot Sidebar
+                      Scholar Copilot & BibTeX Compiler
                     </div>
                     <p className="text-gray-400">
-                      Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">Alt + C</kbd> anytime to open the Copilot to critique text, test counterarguments, and insert snippets.
+                      Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">Alt + C</kbd> to launch specialized academic skills, save discovered papers directly to your Vault, or export <code>.bib</code> & APA 7th bibliographies.
                     </p>
                   </div>
                 </div>
@@ -222,7 +222,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                       Generates high-yield study packages: Core Conceptual Theorems, 10 High-Yield Exam Questions with Marking Rubrics, Diagnostic Traps & Edge Cases, and Anki Flashcard sets.
                     </p>
                     <div className="text-[11px] text-gray-400 bg-black/30 p-2 rounded border border-white/5 font-mono">
-                      Includes: Interactive Socratic Quiz Simulator with instant scoring & examiner report.
+                      Includes: Multi-Question Examination Session Queue (Q1..QN), Session Mastery tracker, & 1-Turn Viva Voce Follow-Up Probe.
                     </div>
                   </div>
 

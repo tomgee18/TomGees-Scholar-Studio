@@ -1,11 +1,20 @@
+export interface ResearchWorkspace {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface DocumentContext {
   id: string;
   name: string;
-  type: 'pdf' | 'txt' | 'md';
+  type: 'pdf' | 'txt' | 'md' | 'docx';
   content: string;
   timestamp: number;
   sizeBytes: number;
   enabled?: boolean;
+  workspaceId?: string;
 }
 
 export interface DocumentChunk {
@@ -29,6 +38,8 @@ export interface DraftHistoryItem {
   timestamp: number;
   wordCount: number;
   sourcesUsed: string[];
+  workspaceId?: string;
+  groundedPapers?: ScholarlyPaper[];
 }
 
 export enum AIProvider {
@@ -105,6 +116,20 @@ export interface ChatMessage {
   sources?: string[];
   modelUsed?: string;
   providerUsed?: AIProvider;
+  workspaceId?: string;
+  groundedPapers?: ScholarlyPaper[];
+  skillUsed?: AcademicSkillType;
+}
+
+export interface VaultSnapshot {
+  version: number;
+  exportedAt: number;
+  activeWorkspaceId: string;
+  workspaces: ResearchWorkspace[];
+  documents: DocumentContext[];
+  chunks: DocumentChunk[];
+  drafts: DraftHistoryItem[];
+  chatMessages: ChatMessage[];
 }
 
 export interface AppConfig {

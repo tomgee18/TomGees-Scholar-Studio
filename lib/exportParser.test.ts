@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { extractExportSections, markdownToPrintHtml } from './exportParser';
+import {
+  extractExportSections,
+  extractExamQuestions,
+  generateBibTeX,
+  generateApaReferences,
+  markdownToPrintHtml,
+} from './exportParser';
+import { extractTextFromDocxXml } from './parsers';
+import { ScholarlyPaper, DocumentContext } from '../types';
 
 describe('exportParser', () => {
   const sampleCompositeStudyKit = `
@@ -53,6 +61,64 @@ Answer: Because boundary conditions constrain the permitted de Broglie wavelengt
     expect(sections.ankiDeckText).toContain('probability density');
   });
 
+  it('extracts discrete numbered exam questions into a structured queue', () => {
+    const sections = extractExportSections(sampleCompositeStudyKit);
+    const questions = extractExamQuestions(sections.examPaper || '');
+
+    expect(questions.length).toBe(2);
+    expect(questions[0]).toContain('Define the Schrödinger equation');
+    expect(questions[1]).toContain('potential well of width L');
+  });
+
+  it('compiles valid BibTeX (.bib) and APA 7th references from grounded papers and vault documents', () => {
+    const samplePapers: ScholarlyPaper[] = [
+      {
+        id: 'paper-1',
+        title: 'Attention Is All You Need',
+        authors: ['Ashish Vaswani', 'Noam Shazeer'],
+        year: 2017,
+        doi: '10.5555/3295222.3295349',
+        url: 'https://arxiv.org/abs/1706.03762',
+        source: 'arxiv',
+      },
+    ];
+    const sampleDocs: DocumentContext[] = [
+      {
+        id: 'doc-1',
+        name: 'Quantum_Mechanics_Lecture_Notes.pdf',
+        type: 'pdf',
+        content: 'Hilbert space formalism...',
+        sizeBytes: 1024,
+        timestamp: 1736899200000,
+      },
+    ];
+
+    const bib = generateBibTeX(samplePapers, sampleDocs);
+    expect(bib).toContain('@misc{vaswani2017attention');
+    expect(bib).toContain('title = {{Attention Is All You Need}}');
+    expect(bib).toContain('author = {Ashish Vaswani and Noam Shazeer}');
+    expect(bib).toContain('@misc{vaultquantummechanicslec');
+
+    const apa = generateApaReferences(samplePapers, sampleDocs);
+    expect(apa).toContain('Ashish Vaswani, Noam Shazeer (2017). Attention Is All You Need.');
+    expect(apa).toContain('https://doi.org/10.5555/3295222.3295349');
+  });
+
+  it('extracts structured text from Word (.docx) document.xml payloads', () => {
+    const sampleDocxXml = `
+      <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        <w:body>
+          <w:p><w:r><w:t>Chapter 1: Stochastic Calculus</w:t></w:r></w:p>
+          <w:p><w:r><w:t>Ito&apos;s Lemma &amp; Martingales</w:t></w:r></w:p>
+        </w:body>
+      </w:document>
+    `;
+
+    const extracted = extractTextFromDocxXml(sampleDocxXml);
+    expect(extracted).toContain('Chapter 1: Stochastic Calculus');
+    expect(extracted).toContain("Ito's Lemma & Martingales");
+  });
+
   it('transforms raw markdown into rich semantic HTML for print/PDF export', () => {
     const testMarkdown = `
 # Quantum Superposition
@@ -89,3 +155,4 @@ def calculate_psi():
     expect(html).toContain('calculate_psi');
   });
 });
+

@@ -7,6 +7,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 interface MarkdownProps {
   content: string;
   isGenerating?: boolean;
+  onCitationClick?: (sourceQuery: string) => void;
 }
 
 // Relax sanitization slightly to allow highlight.js classes and table borders
@@ -19,7 +20,60 @@ const sanitizeSchema = {
   },
 };
 
-export const MarkdownRenderer = ({ content, isGenerating }: MarkdownProps) => {
+const CITATION_REGEX =
+  /(\[(?:Source|Excerpt|Vault|Citation|Ref):\s*([^\]]+)\]|\((?:Source|Excerpt from):\s*([^)]+)\))/gi;
+
+const renderTextWithCitations = (
+  nodes: React.ReactNode,
+  onCitationClick?: (sourceQuery: string) => void
+): React.ReactNode => {
+  if (!onCitationClick) return nodes;
+
+  return React.Children.map(nodes, (child) => {
+    if (typeof child !== 'string') {
+      return child;
+    }
+
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    const regex = new RegExp(CITATION_REGEX.source, 'gi');
+
+    while ((match = regex.exec(child)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(child.slice(lastIndex, match.index));
+      }
+      const fullBadgeText = match[1];
+      const targetSource = (match[2] || match[3] || '').trim();
+
+      parts.push(
+        <button
+          key={`${match.index}-${targetSource}`}
+          type="button"
+          onClick={() => onCitationClick(targetSource)}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded bg-cyberLime/15 hover:bg-cyberLime/25 text-cyberLime border border-cyberLime/30 text-[11px] font-mono transition-colors cursor-pointer align-baseline"
+          title={`Inspect Citation Provenance: ${targetSource}`}
+        >
+          <span>{fullBadgeText}</span>
+        </button>
+      );
+
+      lastIndex = regex.lastIndex;
+    }
+
+    if (parts.length === 0) {
+      return child;
+    }
+
+    if (lastIndex < child.length) {
+      parts.push(child.slice(lastIndex));
+    }
+
+    return <>{parts}</>;
+  });
+};
+
+export const MarkdownRenderer = ({ content, isGenerating, onCitationClick }: MarkdownProps) => {
   return (
     <div className="markdown-body w-full max-w-none text-gray-200 leading-relaxed font-sans">
       <ReactMarkdown
@@ -44,12 +98,12 @@ export const MarkdownRenderer = ({ content, isGenerating }: MarkdownProps) => {
           ),
           p: ({ children }) => (
             <p className="text-gray-300 leading-relaxed mb-4 opacity-95">
-              {children}
+              {renderTextWithCitations(children, onCitationClick)}
             </p>
           ),
           blockquote: ({ children }) => (
             <blockquote className="border-l-2 border-cyberLime/50 pl-4 py-1.5 my-4 bg-white/5 italic text-gray-400 rounded-r-lg">
-              {children}
+              {renderTextWithCitations(children, onCitationClick)}
             </blockquote>
           ),
           ul: ({ children }) => (
@@ -65,7 +119,9 @@ export const MarkdownRenderer = ({ content, isGenerating }: MarkdownProps) => {
           li: ({ children }) => (
             <li className="text-gray-300 flex items-start gap-2">
               <span className="text-cyberLime mt-2 text-[8px] opacity-70">●</span>
-              <span className="leading-relaxed flex-1">{children}</span>
+              <span className="leading-relaxed flex-1">
+                {renderTextWithCitations(children, onCitationClick)}
+              </span>
             </li>
           ),
           table: ({ children }) => (
@@ -87,7 +143,7 @@ export const MarkdownRenderer = ({ content, isGenerating }: MarkdownProps) => {
           ),
           td: ({ children }) => (
             <td className="px-5 py-3.5 border-t border-r border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-              {children}
+              {renderTextWithCitations(children, onCitationClick)}
             </td>
           ),
           pre: ({ children }) => (

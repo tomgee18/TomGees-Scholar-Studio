@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, FileText, Search, Copy, Check } from 'lucide-react';
 import { DocumentContext } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -7,12 +7,21 @@ import { estimateTokens } from '../lib/ai/tokenManager';
 interface DocumentInspectorModalProps {
   document: DocumentContext | null;
   onClose: () => void;
+  initialSearchTerm?: string;
 }
 
-export const DocumentInspectorModal = ({ document, onClose }: DocumentInspectorModalProps) => {
+export const DocumentInspectorModal = ({
+  document,
+  onClose,
+  initialSearchTerm = '',
+}: DocumentInspectorModalProps) => {
   const { addToast } = useToast();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setSearchTerm(initialSearchTerm || '');
+  }, [document?.id, initialSearchTerm]);
 
   if (!document) return null;
 

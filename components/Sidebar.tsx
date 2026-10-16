@@ -10,6 +10,11 @@ import {
   Eye,
   CheckSquare,
   Square,
+  FolderKanban,
+  Plus,
+  Download,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 import { useStore } from '../context/ContextStore';
 import { GlassCard } from './ui/GlassComponents';
@@ -20,6 +25,14 @@ import { DocumentInspectorModal } from './DocumentInspectorModal';
 export const Sidebar = () => {
   const {
     documents,
+    workspaces,
+    activeWorkspaceId,
+    activeWorkspace,
+    switchWorkspace,
+    createWorkspace,
+    deleteWorkspace,
+    exportVaultSnapshot,
+    importVaultSnapshot,
     addDocument,
     removeDocument,
     toggleDocumentEnabled,
@@ -30,14 +43,17 @@ export const Sidebar = () => {
   } = useStore();
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const snapshotInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [inspectingDoc, setInspectingDoc] = useState<DocumentContext | null>(null);
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
 
   const processFile = async (file: File) => {
     try {
       addToast(`Parsing ${file.name}...`, 'info');
       await addDocument(file);
-      addToast(`Added ${file.name} to Vault`, 'success');
+      addToast(`Added ${file.name} to ${activeWorkspace.name}`, 'success');
     } catch (error: any) {
       addToast(error.message || 'Failed to parse file', 'error');
     }
@@ -46,6 +62,75 @@ export const Sidebar = () => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       processFile(e.target.files[0]);
+    }
+  };
+
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWorkspaceName.trim()) return;
+    try {
+      const created = await createWorkspace(newWorkspaceName.trim());
+      setNewWorkspaceName('');
+      setIsCreatingWorkspace(false);
+      addToast(`Created workspace "${created.name}"`, 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to create workspace', 'error');
+    }
+  };
+
+  const handleDeleteCurrentWorkspace = async () => {
+    if (activeWorkspaceId === 'default') return;
+    if (
+      window.confirm(
+        `Delete workspace "${activeWorkspace.name}" and all its documents and drafts?`
+      )
+    ) {
+      try {
+        await deleteWorkspace(activeWorkspaceId);
+        addToast(`Deleted workspace "${activeWorkspace.name}"`, 'info');
+      } catch (err: any) {
+        addToast(err.message || 'Failed to delete workspace', 'error');
+      }
+    }
+  };
+
+  const handleExportSnapshot = async () => {
+    try {
+      const snapshot = await exportVaultSnapshot();
+      const jsonString = JSON.stringify(snapshot, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `tomgees-vault-snapshot-${dateStr}.scholar.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      addToast('Vault Snapshot (.scholar.json) exported!', 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to export Vault Snapshot', 'error');
+    }
+  };
+
+  const handleImportSnapshotFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const stats = await importVaultSnapshot(parsed);
+      addToast(
+        `Restored ${stats.documentsCount} docs & ${stats.draftsCount} drafts across ${stats.workspacesCount} workspace(s)!`,
+        'success'
+      );
+    } catch (err: any) {
+      addToast(err.message || 'Invalid Vault Snapshot file', 'error');
+    } finally {
+      if (snapshotInputRef.current) {
+        snapshotInputRef.current.value = '';
+      }
     }
   };
 
@@ -90,38 +175,126 @@ export const Sidebar = () => {
       />
 
       {/* Header */}
-      <div className="p-6 border-b border-white/10 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            <Database className="w-5 h-5 text-cyberLime" />
-            Context Vault
-          </h2>
-          <p className="text-xs text-gray-400 mt-1 font-mono">
-            {activeCount}/{documents.length} Source{documents.length !== 1 && 's'} Active
-          </p>
+      <div className="p-5 border-b border-white/10 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              <Database className="w-5 h-5 text-cyberLime" />
+              Context Vault
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5 font-mono">
+              {activeCount}/{documents.length} Source{documents.length !== 1 && 's'} Active
+            </p>
+          </div>
+          {documents.length > 0 && (
+            <button
+              onClick={async () => {
+                if (
+                  window.confirm(
+                    `Clear all indexed documents from workspace "${activeWorkspace.name}"?`
+                  )
+                ) {
+                  await clearDocuments();
+                  addToast('Workspace Context Vault cleared', 'info');
+                }
+              }}
+              className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
+              title="Clear workspace documents"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
-        {documents.length > 0 && (
-          <button
-            onClick={async () => {
-              if (window.confirm('Clear all indexed documents from the vault?')) {
-                await clearDocuments();
-                addToast('Context Vault cleared', 'info');
-              }
-            }}
-            className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
-            title="Clear all documents"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
+
+        {/* Research Workspace Switcher */}
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between text-[10px] font-mono text-gray-400 px-0.5">
+            <span className="flex items-center gap-1.5 uppercase tracking-wider">
+              <FolderKanban className="w-3 h-3 text-cyberLime" />
+              Research Workspace
+            </span>
+            <div className="flex items-center gap-1">
+              {activeWorkspaceId !== 'default' && (
+                <button
+                  onClick={handleDeleteCurrentWorkspace}
+                  className="p-1 text-gray-500 hover:text-red-400 rounded hover:bg-white/5 transition-colors"
+                  title="Delete current workspace"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+              <button
+                onClick={() => setIsCreatingWorkspace((prev) => !prev)}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 hover:bg-cyberLime/20 text-gray-300 hover:text-cyberLime transition-colors"
+                title="Create new Research Workspace"
+              >
+                <Plus className="w-3 h-3" />
+                <span>New</span>
+              </button>
+            </div>
+          </div>
+
+          {isCreatingWorkspace ? (
+            <form onSubmit={handleCreateWorkspace} className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={newWorkspaceName}
+                onChange={(e) => setNewWorkspaceName(e.target.value)}
+                placeholder="e.g., BIO-401 Thesis..."
+                autoFocus
+                className="flex-1 bg-black/60 border border-cyberLime/40 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyberLime font-mono"
+              />
+              <button
+                type="submit"
+                className="p-1.5 bg-cyberLime/20 border border-cyberLime/40 text-cyberLime rounded-lg hover:bg-cyberLime/30"
+                title="Create"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreatingWorkspace(false);
+                  setNewWorkspaceName('');
+                }}
+                className="p-1.5 bg-white/5 text-gray-400 rounded-lg hover:text-white"
+                title="Cancel"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          ) : (
+            <div className="relative">
+              <select
+                aria-label="Research Workspace"
+                value={activeWorkspaceId}
+                onChange={(e) => {
+                  switchWorkspace(e.target.value);
+                  const target = workspaces.find((w) => w.id === e.target.value);
+                  if (target) {
+                    addToast(`Switched to workspace: ${target.name}`, 'info');
+                  }
+                }}
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-3 pr-8 py-2 text-xs font-mono text-gray-200 appearance-none outline-none focus:border-cyberLime/50 cursor-pointer hover:bg-white/10 transition-colors"
+              >
+                {workspaces.map((ws) => (
+                  <option key={ws.id} value={ws.id} className="bg-obsidian text-gray-200">
+                    {ws.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Engine Switcher */}
-      <div className="px-6 py-4 space-y-3">
+      <div className="px-6 py-3 space-y-3">
         <GlassCard className="p-1">
           <button
             onClick={togglePrimaryEngine}
-            className="group relative flex items-center gap-3 w-full px-3 py-3 text-xs font-mono transition-all overflow-hidden rounded-lg hover:bg-white/5"
+            className="group relative flex items-center gap-3 w-full px-3 py-2.5 text-xs font-mono transition-all overflow-hidden rounded-lg hover:bg-white/5"
             title="Toggle Engine"
           >
             <div
@@ -184,7 +357,7 @@ export const Sidebar = () => {
       </div>
 
       {/* Upload Dropzone */}
-      <div className="px-6 pb-4">
+      <div className="px-6 pb-3">
         <div
           onClick={() => {
             if (fileInputRef.current) {
@@ -195,25 +368,29 @@ export const Sidebar = () => {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all duration-300 group ${
+          className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-300 group ${
             isDragging
               ? 'border-cyberLime bg-cyberLime/10 scale-102'
               : 'border-white/10 hover:border-cyberLime/50 hover:bg-white/5'
           }`}
         >
-          <div className="p-2.5 rounded-full bg-white/5 group-hover:bg-cyberLime/10 transition-colors">
-            <Upload className={`w-4 h-4 transition-colors ${isDragging ? 'text-cyberLime' : 'text-gray-400 group-hover:text-cyberLime'}`} />
+          <div className="p-2 rounded-full bg-white/5 group-hover:bg-cyberLime/10 transition-colors">
+            <Upload
+              className={`w-4 h-4 transition-colors ${
+                isDragging ? 'text-cyberLime' : 'text-gray-400 group-hover:text-cyberLime'
+              }`}
+            />
           </div>
           <div className="text-center">
             <p className="text-xs font-medium text-gray-200">
               {isDragging ? 'Drop to Index' : 'Add Study Materials'}
             </p>
-            <p className="text-[10px] text-gray-500 mt-0.5">PDF, Markdown, or TXT</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">PDF, DOCX, Markdown, or TXT</p>
           </div>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.md,.pdf"
+            accept=".txt,.md,.pdf,.docx"
             className="hidden"
             onChange={handleFileUpload}
           />
@@ -237,7 +414,11 @@ export const Sidebar = () => {
               <button
                 onClick={() => toggleDocumentEnabled(doc.id)}
                 className="mt-0.5 text-gray-500 hover:text-cyberLime transition-colors"
-                title={isEnabled ? 'Included in prompt (click to exclude)' : 'Excluded from prompt (click to include)'}
+                title={
+                  isEnabled
+                    ? 'Included in prompt (click to exclude)'
+                    : 'Excluded from prompt (click to include)'
+                }
               >
                 {isEnabled ? (
                   <CheckSquare className="w-4 h-4 text-cyberLime" />
@@ -257,7 +438,7 @@ export const Sidebar = () => {
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-[9px] text-gray-500 uppercase font-mono">{doc.type}</span>
                   <span className="text-[9px] text-gray-600 font-mono">
-                    {Math.round(doc.content.length / 1000)}k chars
+                    {Math.max(1, Math.round(doc.content.length / 1000))}k chars
                   </span>
                 </div>
               </div>
@@ -288,18 +469,43 @@ export const Sidebar = () => {
         })}
 
         {documents.length === 0 && (
-          <div className="text-center mt-10 opacity-30">
+          <div className="text-center mt-8 opacity-30">
             <Database className="w-10 h-10 mx-auto mb-2" />
-            <p className="text-xs">Context Vault is empty</p>
+            <p className="text-xs">Workspace Vault is empty</p>
           </div>
         )}
       </div>
 
-      {/* Footer Status */}
-      <div className="p-4 border-t border-white/10 bg-black/60 backdrop-blur-xl">
+      {/* Footer Status & Snapshot Portability */}
+      <div className="p-4 border-t border-white/10 bg-black/60 backdrop-blur-xl space-y-2.5">
         <div className="flex items-center justify-between text-[10px] font-mono text-gray-500">
           <span>ACTIVE VAULT DOCS</span>
           <span className="text-cyberLime font-bold">{activeCount} IN CONTEXT</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={handleExportSnapshot}
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-mono text-gray-300 hover:text-cyberLime transition-colors"
+            title="Export portable Vault Snapshot (.scholar.json)"
+          >
+            <Download className="w-3 h-3" />
+            <span>Backup Vault</span>
+          </button>
+          <button
+            onClick={() => snapshotInputRef.current?.click()}
+            className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-mono text-gray-300 hover:text-deepViolet transition-colors"
+            title="Restore portable Vault Snapshot (.scholar.json)"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Restore Vault</span>
+          </button>
+          <input
+            ref={snapshotInputRef}
+            type="file"
+            accept=".json,.scholar.json"
+            className="hidden"
+            onChange={handleImportSnapshotFile}
+          />
         </div>
       </div>
     </aside>

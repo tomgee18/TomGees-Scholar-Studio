@@ -10,13 +10,16 @@ import {
   Layers,
   Sparkles,
   BookOpen,
+  Quote,
 } from 'lucide-react';
 import {
   extractExportSections,
   downloadTextFile,
   printSnippetToPdf,
+  generateBibTeX,
+  generateApaReferences,
 } from '../lib/exportParser';
-import { DraftMode } from '../types';
+import { DraftMode, ScholarlyPaper, DocumentContext } from '../types';
 import { useToast } from '../context/ToastContext';
 
 interface ExportHubModalProps {
@@ -25,6 +28,8 @@ interface ExportHubModalProps {
   fullContent: string;
   examinerReport?: string;
   selectedMode: DraftMode;
+  groundedPapers?: ScholarlyPaper[];
+  vaultDocuments?: DocumentContext[];
 }
 
 export const ExportHubModal = ({
@@ -33,6 +38,8 @@ export const ExportHubModal = ({
   fullContent,
   examinerReport,
   selectedMode,
+  groundedPapers = [],
+  vaultDocuments = [],
 }: ExportHubModalProps) => {
   const { addToast } = useToast();
 
@@ -40,6 +47,10 @@ export const ExportHubModal = ({
 
   const sections = extractExportSections(fullContent, examinerReport);
   const timestamp = Date.now();
+  const activeVaultDocs = vaultDocuments.filter((d) => d.enabled !== false);
+  const totalRefCount = groundedPapers.length + activeVaultDocs.length;
+  const bibtexContent = generateBibTeX(groundedPapers, activeVaultDocs);
+  const apaContent = generateApaReferences(groundedPapers, activeVaultDocs);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -82,7 +93,11 @@ export const ExportHubModal = ({
               </button>
               <button
                 onClick={() => {
-                  downloadTextFile(sections.fullText, `TomGees-${selectedMode}-${timestamp}.md`, 'text/markdown');
+                  downloadTextFile(
+                    sections.fullText,
+                    `TomGees-${selectedMode}-${timestamp}.md`,
+                    'text/markdown'
+                  );
                   addToast('Exported Markdown (.md)', 'success');
                 }}
                 className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-300 border border-white/5 flex items-center gap-1.5"
@@ -91,7 +106,11 @@ export const ExportHubModal = ({
               </button>
               <button
                 onClick={() => {
-                  downloadTextFile(sections.fullText, `TomGees-${selectedMode}-${timestamp}.txt`, 'text/plain');
+                  downloadTextFile(
+                    sections.fullText,
+                    `TomGees-${selectedMode}-${timestamp}.txt`,
+                    'text/plain'
+                  );
                   addToast('Exported Plain Text (.txt)', 'success');
                 }}
                 className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-300 border border-white/5 flex items-center gap-1.5"
@@ -101,7 +120,53 @@ export const ExportHubModal = ({
             </div>
           </div>
 
-          {/* 2. Student Mock Exam Paper (Questions Only) */}
+          {/* 2. BibTeX (.bib) & APA Reference Compiler */}
+          {totalRefCount > 0 && (
+            <div className="p-4 rounded-xl bg-white/5 border border-amber-500/20 hover:border-amber-500/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-bold text-amber-400">
+                  <Quote className="w-4 h-4 text-amber-400" />
+                  BibTeX (.bib) & Citation Bibliography ({totalRefCount} Source
+                  {totalRefCount !== 1 && 's'})
+                </div>
+                <p className="text-xs text-gray-400">
+                  Compiled from {groundedPapers.length} Grounded Paper
+                  {groundedPapers.length !== 1 && 's'} and {activeVaultDocs.length} active Context
+                  Vault source{activeVaultDocs.length !== 1 && 's'} for Zotero, Overleaf, or LaTeX.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    downloadTextFile(
+                      bibtexContent,
+                      `ScholarReferences-${timestamp}.bib`,
+                      'application/x-bibtex'
+                    );
+                    addToast(`Exported ${totalRefCount} citations to BibTeX (.bib)`, 'success');
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-xs font-mono text-amber-300 border border-amber-500/30 flex items-center gap-1.5 font-bold"
+                >
+                  <Download className="w-3.5 h-3.5" /> BibTeX (.bib)
+                </button>
+                <button
+                  onClick={() => {
+                    downloadTextFile(
+                      apaContent,
+                      `APA-References-${timestamp}.md`,
+                      'text/markdown'
+                    );
+                    addToast('Exported APA 7th Reference List (.md)', 'success');
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-300 border border-white/5 flex items-center gap-1.5"
+                >
+                  <FileCode className="w-3.5 h-3.5 text-amber-400" /> APA (.md)
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 3. Student Mock Exam Paper (Questions Only) */}
           {sections.examPaper && (
             <div className="p-4 rounded-xl bg-white/5 border border-cyberLime/20 hover:border-cyberLime/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -110,7 +175,8 @@ export const ExportHubModal = ({
                   Student Mock Exam Paper (Questions Only)
                 </div>
                 <p className="text-xs text-gray-400">
-                  Examination paper without solutions or rubrics — ready to print and take under test conditions.
+                  Examination paper without solutions or rubrics — ready to print and take under
+                  test conditions.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -125,7 +191,11 @@ export const ExportHubModal = ({
                 </button>
                 <button
                   onClick={() => {
-                    downloadTextFile(sections.examPaper!, `ExamPaper-StudentCopy-${timestamp}.md`, 'text/markdown');
+                    downloadTextFile(
+                      sections.examPaper!,
+                      `ExamPaper-StudentCopy-${timestamp}.md`,
+                      'text/markdown'
+                    );
                     addToast('Exported Student Exam Paper (.md)', 'success');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-300 border border-white/5 flex items-center gap-1.5"
@@ -136,7 +206,7 @@ export const ExportHubModal = ({
             </div>
           )}
 
-          {/* 3. Official Marking Scheme & Rubrics */}
+          {/* 4. Official Marking Scheme & Rubrics */}
           {sections.markingScheme && (
             <div className="p-4 rounded-xl bg-white/5 border border-deepViolet/20 hover:border-deepViolet/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -145,7 +215,8 @@ export const ExportHubModal = ({
                   Official Marking Scheme & Exemplar Answers
                 </div>
                 <p className="text-xs text-gray-400">
-                  Point-by-point marking rubric and top-tier model answers for post-exam self-grading.
+                  Point-by-point marking rubric and top-tier model answers for post-exam
+                  self-grading.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -160,7 +231,11 @@ export const ExportHubModal = ({
                 </button>
                 <button
                   onClick={() => {
-                    downloadTextFile(sections.markingScheme!, `MarkingScheme-${timestamp}.md`, 'text/markdown');
+                    downloadTextFile(
+                      sections.markingScheme!,
+                      `MarkingScheme-${timestamp}.md`,
+                      'text/markdown'
+                    );
                     addToast('Exported Marking Scheme (.md)', 'success');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-300 border border-white/5 flex items-center gap-1.5"
@@ -171,7 +246,7 @@ export const ExportHubModal = ({
             </div>
           )}
 
-          {/* 4. Active Recall -> Anki / Quizlet Flashcards */}
+          {/* 5. Active Recall -> Anki / Quizlet Flashcards */}
           {sections.ankiDeckText && (
             <div className="p-4 rounded-xl bg-white/5 border border-blue-500/20 hover:border-blue-500/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -186,7 +261,11 @@ export const ExportHubModal = ({
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => {
-                    downloadTextFile(sections.ankiDeckText!, `AnkiDeck-${timestamp}.txt`, 'text/tab-separated-values');
+                    downloadTextFile(
+                      sections.ankiDeckText!,
+                      `AnkiDeck-${timestamp}.txt`,
+                      'text/tab-separated-values'
+                    );
                     addToast(`Downloaded ${sections.ankiCardCount} Anki cards (.txt)`, 'success');
                   }}
                   className="px-3.5 py-1.5 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-xs font-mono text-blue-300 border border-blue-500/30 flex items-center gap-1.5 font-bold"
@@ -195,7 +274,11 @@ export const ExportHubModal = ({
                 </button>
                 <button
                   onClick={() => {
-                    downloadTextFile(sections.ankiDeckText!, `Flashcards-${timestamp}.csv`, 'text/csv');
+                    downloadTextFile(
+                      sections.ankiDeckText!,
+                      `Flashcards-${timestamp}.csv`,
+                      'text/csv'
+                    );
                     addToast('Downloaded Flashcards (.csv)', 'success');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-300 border border-white/5 flex items-center gap-1.5"
@@ -206,7 +289,7 @@ export const ExportHubModal = ({
             </div>
           )}
 
-          {/* 5. Examiner Evaluation Report (if Socratic graded) */}
+          {/* 6. Examiner Evaluation Report (if Socratic graded) */}
           {sections.examinerReport && (
             <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -215,7 +298,8 @@ export const ExportHubModal = ({
                   Examiner Socratic Evaluation Report
                 </div>
                 <p className="text-xs text-gray-400">
-                  Your submitted answer along with examiner mark breakdown, critique, and model revision.
+                  Your submitted answer along with examiner mark breakdown, critique, and model
+                  revision.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -230,7 +314,11 @@ export const ExportHubModal = ({
                 </button>
                 <button
                   onClick={() => {
-                    downloadTextFile(sections.examinerReport!, `ExaminerReport-${timestamp}.md`, 'text/markdown');
+                    downloadTextFile(
+                      sections.examinerReport!,
+                      `ExaminerReport-${timestamp}.md`,
+                      'text/markdown'
+                    );
                     addToast('Exported Evaluation (.md)', 'success');
                   }}
                   className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-gray-300 border border-white/5 flex items-center gap-1.5"
