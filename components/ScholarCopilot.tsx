@@ -35,7 +35,11 @@ import { ACADEMIC_SKILLS } from '../lib/ai/academicSkills';
 import { searchScholarlyLiterature, formatPapersForContext } from '../lib/ai/scholarlyClient';
 import { db } from '../lib/db';
 import { MarkdownRenderer } from './ui/MarkdownRenderer';
-import { getModelContextLimit, getOptimalChunkCount } from '../lib/ai/tokenManager';
+import {
+  estimateTokens,
+  getModelContextLimit,
+  getOptimalChunkCount,
+} from '../lib/ai/tokenManager';
 
 interface ScholarCopilotProps {
   isOpen: boolean;
@@ -115,6 +119,7 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
     activeProfile,
     activeWorkspaceId,
     resolveProfileKey,
+    getFullContextString,
     getRetrievedContextString,
     documents,
     addRawDocument,
@@ -276,18 +281,35 @@ export const ScholarCopilot: React.FC<ScholarCopilotProps> = ({
       contextBlock += `\n\n=== USER ACTIVE DRAFT ===\n${draftExcerpt}\n=== END ACTIVE DRAFT ===\n`;
     }
 
-    // Step 2: Vault BM25 Retrieval
+    // Step 2: Smart Full-Vault Injection or Stratified Academic BM25F+MMR Retrieval
     if (searchVault && documents.some((d) => d.enabled !== false)) {
       try {
+        const selectedChatProfile =
+          chatProvider === AIProvider.OPENAI_COMPATIBLE
+            ? config.profiles.find((p) => p.id === chatProfileId) || activeProfile
+            : undefined;
         const targetModelName =
           chatProvider === AIProvider.GEMINI_DIRECT
             ? config.geminiModel
-            : (config.profiles.find((p) => p.id === chatProfileId) || activeProfile)?.model ||
-              'default-model';
-        const dynamicChunks = getOptimalChunkCount(getModelContextLimit(targetModelName));
-        const retrieved = await getRetrievedContextString(rawPrompt, dynamicChunks);
-        if (retrieved.trim()) {
-          contextBlock += `\n\n=== RETRIEVED VAULT SOURCES ===\n${retrieved}\n=== END VAULT SOURCES ===\n`;
+            : selectedChatProfile?.model || 'default-model';
+        const maxLimit = getModelContextLimit(
+          targetModelName,
+          chatProvider === AIProvider.GEMINI_DIRECT ? undefined : selectedChatProfile?.contextWindow
+        );
+        const fullVaultText = getFullContextString();
+        const fullVaultTokens = estimateTokens(fullVaultText);
+        const safeFullCeiling = Math.floor((maxLimit - 2048) * 0.75);
+
+        let vaultPayload = '';
+        if (!config.forceSmartRetrieval && fullVaultTokens <= safeFullCeiling) {
+          vaultPayload = fullVaultText;
+        } else {
+          const dynamicChunks = getOptimalChunkCount(maxLimit);
+          vaultPayload = await getRetrievedContextString(rawPrompt, dynamicChunks);
+        }
+
+        if (vaultPayload.trim()) {
+          contextBlock += `\n\n=== VAULT SOURCES ===\n${vaultPayload}\n=== END VAULT SOURCES ===\n`;
           sourcesUsed.push(...documents.filter((d) => d.enabled !== false).map((d) => d.name));
         }
       } catch (err) {

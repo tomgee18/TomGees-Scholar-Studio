@@ -25,10 +25,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Zero-Dependency Word (`.docx`) Ingestion & Copilot Paper Cards:**
   - Client-side `.docx` parser using Web `DataView` ZIP Central Directory traversal and `DecompressionStream('deflate-raw')` to extract `word/document.xml` paragraphs with zero external dependencies.
   - Structured `AcademicSkillType` prompt routing and interactive **Grounded Paper Cards** inside Scholar Copilot chat messages with 1-click **Save to Vault**.
+- **Hierarchical Academic Chunker, Contextual Breadcrumbs, & Stratified BM25F+MMR Retrieval:**
+  - Replaced flat word-splitting with a structure-aware academic chunker that preserves newlines, Markdown tables, LaTeX equations, and numbered exam questions (`Question 1`, `Q1.`, `1.`), prepending `[Document | Section | Part X/Y]` contextual breadcrumbs to every chunk.
+  - Added **Stratified Multi-Document Allocation + Always-On Vault Inventory Manifest** so uploading 10+ past questions guarantees every single document is represented in the prompt and listed in the Vault Inventory.
+  - Upgraded ranking to **BM25F** (3.5x filename boost, 2.5x section header boost), deterministic academic suffix stemming, 2.0x bigram phrase bonus, and **Maximal Marginal Relevance (MMR)** deduplication.
+  - Added automatic background re-indexing (`CHUNK_ENGINE_VERSION = 2`), per-document chunk badges (`X chunks`), and a 1-click **Re-Index Vault** button in the Sidebar.
 - **Domain Model & Architecture Documentation:**
   - Added canonical domain glossary (`GLOSSARY.md`) and ADR 0001 (`docs/adr/0001-local-first-workspace-isolation-and-snapshots.md`).
 
 ### Fixed
+- **Multi-Document Starvation & Unconditional Copilot Truncation:** Fixed an issue where top-K retrieval could starve 8 out of 10 uploaded past-question files when query terms only matched 2 files, and updated Scholar Copilot to pass 100% full Vault text automatically whenever it fits within 75% of the model's context window.
 - **CI Quality Gate Node & Vitest Pool Compatibility:** Upgraded GitHub Actions workflow to Node.js 22 and configured `pool: 'threads'` in `vitest.config.ts` to eliminate `jsdom`/`webidl-conversions` worker isolation crashes.
 
 ---

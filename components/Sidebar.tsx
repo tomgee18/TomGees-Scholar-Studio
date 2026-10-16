@@ -37,6 +37,7 @@ export const Sidebar = () => {
     removeDocument,
     toggleDocumentEnabled,
     clearDocuments,
+    reindexAllDocuments,
     config,
     updateConfig,
     activeProfile,
@@ -45,6 +46,7 @@ export const Sidebar = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const snapshotInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isReindexing, setIsReindexing] = useState(false);
   const [inspectingDoc, setInspectingDoc] = useState<DocumentContext | null>(null);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
@@ -164,8 +166,26 @@ export const Sidebar = () => {
     );
   };
 
+  const handleReindexVault = async () => {
+    if (documents.length === 0 || isReindexing) return;
+    setIsReindexing(true);
+    try {
+      const total = await reindexAllDocuments();
+      addToast(
+        `Re-indexed all ${documents.length} documents into ${total} academic chunks!`,
+        'success'
+      );
+    } catch (err: any) {
+      addToast(err.message || 'Failed to re-index Vault documents', 'error');
+    } finally {
+      setIsReindexing(false);
+    }
+  };
+
   const isGemini = config.aiProvider === AIProvider.GEMINI_DIRECT;
-  const activeCount = documents.filter((d) => d.enabled !== false).length;
+  const activeDocs = documents.filter((d) => d.enabled !== false);
+  const activeCount = activeDocs.length;
+  const totalActiveChunks = activeDocs.reduce((acc, d) => acc + (d.chunkCount || 1), 0);
 
   return (
     <aside className="w-80 flex flex-col h-full border-r border-white/10 bg-black/40 backdrop-blur-xl relative z-20">
@@ -183,26 +203,36 @@ export const Sidebar = () => {
               Context Vault
             </h2>
             <p className="text-xs text-gray-400 mt-0.5 font-mono">
-              {activeCount}/{documents.length} Source{documents.length !== 1 && 's'} Active
+              {activeCount}/{documents.length} Source{documents.length !== 1 && 's'} • {totalActiveChunks} Chunks
             </p>
           </div>
           {documents.length > 0 && (
-            <button
-              onClick={async () => {
-                if (
-                  window.confirm(
-                    `Clear all indexed documents from workspace "${activeWorkspace.name}"?`
-                  )
-                ) {
-                  await clearDocuments();
-                  addToast('Workspace Context Vault cleared', 'info');
-                }
-              }}
-              className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
-              title="Clear workspace documents"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleReindexVault}
+                disabled={isReindexing}
+                className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-cyberLime transition-colors disabled:opacity-50"
+                title="Re-index all workspace documents with Hierarchical Academic Chunker"
+              >
+                <RotateCcw className={`w-4 h-4 ${isReindexing ? 'animate-spin text-cyberLime' : ''}`} />
+              </button>
+              <button
+                onClick={async () => {
+                  if (
+                    window.confirm(
+                      `Clear all indexed documents from workspace "${activeWorkspace.name}"?`
+                    )
+                  ) {
+                    await clearDocuments();
+                    addToast('Workspace Context Vault cleared', 'info');
+                  }
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-red-400 transition-colors"
+                title="Clear workspace documents"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -439,6 +469,10 @@ export const Sidebar = () => {
                   <span className="text-[9px] text-gray-500 uppercase font-mono">{doc.type}</span>
                   <span className="text-[9px] text-gray-600 font-mono">
                     {Math.max(1, Math.round(doc.content.length / 1000))}k chars
+                  </span>
+                  <span className="text-[9px] text-cyberLime/80 bg-cyberLime/10 px-1.5 py-0.2 rounded font-mono">
+                    {doc.chunkCount || Math.max(1, Math.ceil(doc.content.split(/\s+/).length / 350))} chunk
+                    {(doc.chunkCount || 1) === 1 ? '' : 's'}
                   </span>
                 </div>
               </div>

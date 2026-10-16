@@ -28,6 +28,11 @@
    - Drag and drop `.docx` manuscripts and syllabi directly into the Context Vault — parsed client-side via Web `DataView` ZIP Central Directory traversal and `DecompressionStream('deflate-raw')` with zero external dependencies.
    - **Scholar Copilot (`Alt + C`)** now renders interactive **Grounded Paper Cards** inside chat responses with 1-click **Save to Vault** and structured `AcademicSkillType` prompt templates.
 
+6. **Hierarchical Academic Chunker, Contextual Breadcrumbs & Stratified Multi-Doc BM25F+MMR**
+   - **Zero Document Starvation:** Always injects a complete **Vault Inventory Manifest** and guarantees **Stratified Per-Document Coverage** across all uploaded files (10 uploaded past questions = all 10 files are guaranteed representation), plus automatic 100% Full-Vault injection whenever the Vault fits within 75% of the model's context window.
+   - **Structure-Preserving Academic Chunker:** Keeps exam questions (`Question 1`, `Q1.`), sub-parts `(a)/(b)`, Markdown tables, and LaTeX blocks intact and prepends `[Document | Section | Part X/Y]` contextual breadcrumbs to every chunk.
+   - **BM25F + Stemming + Bigrams + MMR:** Boosts filename matches (`3.5x`) and section headings (`2.5x`), normalizes academic inflections (`questions` ↔ `question`, `matrices` ↔ `matrix`), rewards multi-word phrases (`2.0x`), and eliminates redundant chunks via Maximal Marginal Relevance (MMR).
+
 ---
 
 ### 🛠️ Engineering & CI Improvements

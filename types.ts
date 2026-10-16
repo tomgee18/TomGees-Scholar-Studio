@@ -15,6 +15,7 @@ export interface DocumentContext {
   sizeBytes: number;
   enabled?: boolean;
   workspaceId?: string;
+  chunkCount?: number;
 }
 
 export interface DocumentChunk {
@@ -24,6 +25,7 @@ export interface DocumentChunk {
   chunkIndex: number;
   content: string;
   wordCount: number;
+  sectionTitle?: string;
 }
 
 export interface DraftHistoryItem {

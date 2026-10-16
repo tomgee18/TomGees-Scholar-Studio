@@ -20,7 +20,12 @@ import {
   VaultSnapshot,
 } from '../types';
 import { parseFile } from '../lib/parsers/index';
-import { chunkDocumentText, retrieveTopKChunks } from '../lib/ai/retrievalEngine';
+import {
+  chunkDocumentText,
+  retrieveTopKChunks,
+  buildVaultManifest,
+  CHUNK_ENGINE_VERSION,
+} from '../lib/ai/retrievalEngine';
 import { db } from '../lib/db';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
@@ -51,6 +56,7 @@ interface ContextStoreType {
   removeDocument: (id: string) => Promise<void>;
   toggleDocumentEnabled: (id: string) => Promise<void>;
   clearDocuments: () => Promise<void>;
+  reindexAllDocuments: () => Promise<number>;
   saveDraftToHistory: (draft: Omit<DraftHistoryItem, 'id' | 'timestamp'>) => Promise<void>;
   deleteDraftFromHistory: (id: string) => Promise<void>;
   clearDraftHistory: () => Promise<void>;
@@ -256,24 +262,36 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         }
 
         const loadedDocs = await db.documents.orderBy('timestamp').reverse().toArray();
-        setAllDocuments(
-          loadedDocs.map((d) => ({
-            ...d,
-            enabled: typeof d.enabled === 'boolean' ? d.enabled : true,
-            workspaceId: d.workspaceId || 'default',
-          }))
-        );
+        const savedChunkVer = await db.settings.get('chunk_engine_version').catch(() => undefined);
+        const needsEngineUpgrade = savedChunkVer?.value !== CHUNK_ENGINE_VERSION;
 
-        // Auto-chunk any existing documents that were not previously chunked in DB
+        const hydratedDocs: DocumentContext[] = [];
         for (const doc of loadedDocs) {
-          const count = await db.chunks.where('documentId').equals(doc.id).count();
-          if (count === 0 && doc.content) {
+          let count = await db.chunks.where('documentId').equals(doc.id).count();
+          if ((needsEngineUpgrade || count === 0) && doc.content) {
+            await db.chunks.where('documentId').equals(doc.id).delete();
             const chunks = chunkDocumentText(doc.id, doc.name, doc.content);
             if (chunks.length > 0) {
               await db.chunks.bulkPut(chunks);
             }
+            count = chunks.length;
+            await db.documents.update(doc.id, { chunkCount: count }).catch(() => {});
           }
+          hydratedDocs.push({
+            ...doc,
+            enabled: typeof doc.enabled === 'boolean' ? doc.enabled : true,
+            workspaceId: doc.workspaceId || 'default',
+            chunkCount: count || doc.chunkCount || 1,
+          });
         }
+
+        if (needsEngineUpgrade) {
+          await db.settings
+            .put({ key: 'chunk_engine_version', value: CHUNK_ENGINE_VERSION })
+            .catch(() => {});
+        }
+
+        setAllDocuments(hydratedDocs);
 
         const loadedDrafts = await db.drafts.orderBy('timestamp').reverse().toArray();
         setAllDrafts(
@@ -581,13 +599,18 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
   const getFullContextString = useCallback(() => {
     const activeDocs = documents.filter((doc) => doc.enabled !== false);
     if (activeDocs.length === 0) return '';
-    return activeDocs
-      .map((doc) => `--- SOURCE: ${doc.name} (${doc.type}) ---\n${doc.content}\n`)
+    const manifest = buildVaultManifest(activeDocs);
+    const body = activeDocs
+      .map(
+        (doc, idx) =>
+          `--- DOCUMENT #${idx + 1} OF ${activeDocs.length}: ${doc.name} (${doc.type.toUpperCase()}) ---\n${doc.content}\n`
+      )
       .join('\n');
+    return `${manifest}\n${body}`;
   }, [documents]);
 
   const getRetrievedContextString = useCallback(
-    async (query: string, topK = 15): Promise<string> => {
+    async (query: string, topK = 24): Promise<string> => {
       const activeDocs = documents.filter((doc) => doc.enabled !== false);
       if (activeDocs.length === 0) return '';
 
@@ -599,14 +622,19 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         return getFullContextString();
       }
 
-      const relevantChunks = retrieveTopKChunks(query, filteredChunks, topK);
+      // Ensure topK scales with the number of active documents so every uploaded file is represented
+      const scaledTopK = Math.max(topK, activeDocs.length * 2);
+      const relevantChunks = retrieveTopKChunks(query, filteredChunks, scaledTopK);
+      const coveredDocIds = new Set(relevantChunks.map((c) => c.documentId));
+      const manifest = buildVaultManifest(activeDocs);
 
       return (
-        `[SMART RETRIEVAL APPLIED: Displaying ${relevantChunks.length} most relevant sections based on query]\n\n` +
+        `${manifest}\n` +
+        `[STRATIFIED ACADEMIC RETRIEVAL APPLIED: Displaying ${relevantChunks.length} high-relevance sections across ${coveredDocIds.size} of ${activeDocs.length} active Vault documents]\n\n` +
         relevantChunks
           .map(
             (chunk) =>
-              `--- EXCERPT FROM: ${chunk.docName} (Section #${chunk.chunkIndex + 1}) ---\n${chunk.content}\n`
+              `--- EXCERPT FROM: ${chunk.docName} (Section: ${chunk.sectionTitle || `#${chunk.chunkIndex + 1}`}) ---\n${chunk.content}\n`
           )
           .join('\n')
       );
@@ -626,6 +654,8 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         ext === 'pdf' ? 'pdf' : ext === 'docx' ? 'docx' : ext === 'md' ? 'md' : 'txt';
 
       const docId = generateId();
+      const chunks = chunkDocumentText(docId, file.name, text);
+
       const newDoc: DocumentContext = {
         id: docId,
         name: file.name,
@@ -635,13 +665,11 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         sizeBytes: file.size || text.length,
         enabled: true,
         workspaceId: activeWorkspaceId,
+        chunkCount: chunks.length,
       };
 
-      // Index full document
+      // Index full document and structure-aware chunks
       await db.documents.put(newDoc);
-
-      // Slice and index semantic chunks for BM25 retrieval
-      const chunks = chunkDocumentText(docId, file.name, text);
       if (chunks.length > 0) {
         await db.chunks.bulkPut(chunks);
       }
@@ -658,6 +686,8 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
       }
 
       const docId = generateId();
+      const chunks = chunkDocumentText(docId, name, content);
+
       const newDoc: DocumentContext = {
         id: docId,
         name,
@@ -667,10 +697,10 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         sizeBytes: new Blob([content]).size,
         enabled: true,
         workspaceId: activeWorkspaceId,
+        chunkCount: chunks.length,
       };
 
       await db.documents.put(newDoc);
-      const chunks = chunkDocumentText(docId, name, content);
       if (chunks.length > 0) {
         await db.chunks.bulkPut(chunks);
       }
@@ -680,6 +710,33 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
     },
     [activeWorkspaceId]
   );
+
+  const reindexAllDocuments = useCallback(async (): Promise<number> => {
+    const workspaceDocs = allDocuments.filter(
+      (d) => (d.workspaceId || 'default') === activeWorkspaceId
+    );
+    let totalChunksCreated = 0;
+    const updatedCounts = new Map<string, number>();
+
+    for (const doc of workspaceDocs) {
+      await db.chunks.where('documentId').equals(doc.id).delete();
+      const chunks = chunkDocumentText(doc.id, doc.name, doc.content);
+      if (chunks.length > 0) {
+        await db.chunks.bulkPut(chunks);
+      }
+      totalChunksCreated += chunks.length;
+      updatedCounts.set(doc.id, chunks.length);
+      await db.documents.update(doc.id, { chunkCount: chunks.length }).catch(() => {});
+    }
+
+    setAllDocuments((prev) =>
+      prev.map((d) =>
+        updatedCounts.has(d.id) ? { ...d, chunkCount: updatedCounts.get(d.id) } : d
+      )
+    );
+
+    return totalChunksCreated;
+  }, [allDocuments, activeWorkspaceId]);
 
   const toggleDocumentEnabled = useCallback(async (id: string) => {
     setAllDocuments((prev) =>
@@ -763,6 +820,7 @@ export const ContextStoreProvider = ({ children }: { children?: ReactNode }) => 
         removeDocument,
         toggleDocumentEnabled,
         clearDocuments,
+        reindexAllDocuments,
         saveDraftToHistory,
         deleteDraftFromHistory,
         clearDraftHistory,

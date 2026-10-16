@@ -27,19 +27,49 @@ export const getModelContextLimit = (modelName: string, overrideLimit?: number):
   const name = modelName.toLowerCase();
 
   // Gemini models (1 Million tokens)
-  if (name.includes('gemini-2.0') || name.includes('gemini-2.5') || name.includes('gemini-1.5')) return 1000000;
+  if (
+    name.includes('gemini-2.0') ||
+    name.includes('gemini-2.5') ||
+    name.includes('gemini-1.5') ||
+    name.includes('gemini-3')
+  ) {
+    return 1000000;
+  }
   if (name.includes('gemini')) return 128000;
 
-  // Claude models
-  if (name.includes('claude-3')) return 200000;
+  // Claude models (200k)
+  if (name.includes('claude-3') || name.includes('claude-4') || name.includes('sonnet') || name.includes('opus')) {
+    return 200000;
+  }
+
+  // OpenAI frontier models (128k)
+  if (
+    name.includes('gpt-4o') ||
+    name.includes('gpt-4.1') ||
+    name.includes('gpt-4-turbo') ||
+    name.includes('o1') ||
+    name.includes('o3') ||
+    name.includes('o4')
+  ) {
+    return 128000;
+  }
 
   // Llama 3.1 / 3.2 / 3.3 (128k)
-  if (name.includes('llama-3.1') || name.includes('llama-3.2') || name.includes('llama-3.3')) return 128000;
+  if (
+    name.includes('llama-3.1') ||
+    name.includes('llama-3.2') ||
+    name.includes('llama-3.3') ||
+    name.includes('llama3.1') ||
+    name.includes('llama3.2') ||
+    name.includes('llama3.3')
+  ) {
+    return 128000;
+  }
   if (name.includes('llama-3') || name.includes('llama3')) return 8192;
 
   // Mistral / Qwen
-  if (name.includes('qwen-2.5') || name.includes('qwen2.5')) return 32768;
-  if (name.includes('mistral')) return 32768;
+  if (name.includes('qwen')) return 32768;
+  if (name.includes('mistral') || name.includes('mixtral')) return 32768;
 
   // DeepSeek (64k context window)
   if (name.includes('deepseek')) return 64000;
@@ -50,16 +80,17 @@ export const getModelContextLimit = (modelName: string, overrideLimit?: number):
 
 /**
  * Dynamic model-aware chunk count calculation.
- * Ensures large models (64k, 128k+) extract comprehensive context,
+ * Ensures large models (64k, 128k, 1M) extract comprehensive multi-document context,
  * while compact models (4k, 8k) reserve safe headroom for output generation.
  */
 export const getOptimalChunkCount = (maxContextTokens: number): number => {
-  if (maxContextTokens >= 128000) return 40; // ~21,200 tokens
-  if (maxContextTokens >= 64000) return 25;  // ~13,250 tokens (DeepSeek)
-  if (maxContextTokens >= 32000) return 18;  // ~9,540 tokens (Qwen / Mistral)
-  if (maxContextTokens >= 16000) return 14;  // ~7,420 tokens
-  if (maxContextTokens >= 8000) return 8;    // ~4,240 tokens (8k models like Ollama/LM Studio)
-  return 4;                                  // ~2,120 tokens (compact 4k models)
+  if (maxContextTokens >= 500000) return 80; // ~40,000 tokens (Gemini 1M)
+  if (maxContextTokens >= 128000) return 50; // ~25,000 tokens (GPT-4o / Llama 3.3 / Claude)
+  if (maxContextTokens >= 64000) return 32;  // ~16,000 tokens (DeepSeek 64k)
+  if (maxContextTokens >= 32000) return 22;  // ~11,000 tokens (Qwen / Mistral)
+  if (maxContextTokens >= 16000) return 14;  // ~7,000 tokens
+  if (maxContextTokens >= 8000) return 8;    // ~4,000 tokens (8k local models)
+  return 4;                                  // ~2,000 tokens (compact 4k models)
 };
 
 export const calculateTokenBudget = (
@@ -80,12 +111,13 @@ export const calculateTokenBudget = (
 
   const optimalChunkCount = getOptimalChunkCount(maxContextTokens);
 
-  // RAG triggers if forced or if base prompt + vault text exceeds available input budget
-  const isRAGActive = forceRAG || (baseTokens + rawVaultTokens) > availableInputBudget;
+  // Pass 100% full Vault text automatically whenever it fits within 75% of the available input budget (unless forceRAG is enabled)
+  const fullTextCeiling = Math.floor(availableInputBudget * 0.75);
+  const isRAGActive = forceRAG || (baseTokens + rawVaultTokens) > fullTextCeiling;
 
-  // Each chunk is ~400 words (~530 tokens)
+  // Each chunk is ~380 words (~500 tokens)
   const maxAllowedRAGTokens = Math.max(0, availableInputBudget - baseTokens);
-  const estimatedRAGTokens = Math.min(optimalChunkCount * 530, maxAllowedRAGTokens);
+  const estimatedRAGTokens = Math.min(optimalChunkCount * 500, maxAllowedRAGTokens);
 
   const injectedTokens = isRAGActive
     ? Math.min(rawVaultTokens, baseTokens + estimatedRAGTokens)

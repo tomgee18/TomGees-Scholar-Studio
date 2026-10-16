@@ -29,9 +29,10 @@ describe('tokenManager', () => {
   });
 
   it('calculates optimal chunk counts scaled by context limit', () => {
-    expect(getOptimalChunkCount(1000000)).toBe(40);
-    expect(getOptimalChunkCount(64000)).toBe(25);
-    expect(getOptimalChunkCount(32768)).toBe(18);
+    expect(getOptimalChunkCount(1000000)).toBe(80);
+    expect(getOptimalChunkCount(128000)).toBe(50);
+    expect(getOptimalChunkCount(64000)).toBe(32);
+    expect(getOptimalChunkCount(32768)).toBe(22);
     expect(getOptimalChunkCount(16384)).toBe(14);
     expect(getOptimalChunkCount(8192)).toBe(8);
     expect(getOptimalChunkCount(4096)).toBe(4);
@@ -51,7 +52,7 @@ describe('tokenManager', () => {
     expect(budget.maxContextTokens).toBe(8192);
     expect(budget.isRAGActive).toBe(true);
     expect(budget.optimalChunkCount).toBe(8);
-    // 8 chunks (~4,240 tokens) + base prompt leaves > 2,000 tokens headroom for generation
+    // 8 chunks (~4,000 tokens) + base prompt leaves > 2,000 tokens headroom for generation
     expect(budget.injectedTokens).toBeLessThan(6000);
     expect(budget.status).toBe('safe');
   });
@@ -72,8 +73,8 @@ describe('tokenManager', () => {
     expect(budget.maxContextTokens).toBe(64000);
     expect(budget.isRAGActive).toBe(true);
     expect(budget.canSwitchToGemini).toBe(true);
-    expect(budget.optimalChunkCount).toBe(25);
-    // Injected tokens must be safe (~14k tokens) and NOT overflow the 64k limit
+    expect(budget.optimalChunkCount).toBe(32);
+    // Injected tokens must be safe (~16k tokens) and NOT overflow the 64k limit
     expect(budget.injectedTokens).toBeLessThan(20000);
     expect(budget.status).toBe('safe');
   });
