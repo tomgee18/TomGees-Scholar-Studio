@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'docs/**'
+      - 'GLOSSARY.md'
       - '.github/workflows/wiki-sync.yml'
   workflow_dispatch:
 
@@ -30,9 +31,11 @@ jobs:
           cp docs/wiki/_Sidebar.md dist-wiki/_Sidebar.md
           cp docs/wiki/_Footer.md dist-wiki/_Footer.md
           
-          # Copy User Guide and Technical Architecture
+          # Copy User Guide, Technical Architecture, Domain Glossary, and ADRs
           cp docs/USER_GUIDE.md dist-wiki/User-Guide.md
           cp docs/ARCHITECTURE.md dist-wiki/Architecture.md
+          cp GLOSSARY.md dist-wiki/Domain-Glossary.md
+          cp docs/adr/0001-local-first-workspace-isolation-and-snapshots.md dist-wiki/ADR-0001-Workspace-Isolation.md
           
           echo "Staged wiki files:"
           ls -la dist-wiki/

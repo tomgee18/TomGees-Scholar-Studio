@@ -13,37 +13,39 @@ A local-first, offline-capable academic research suite and study engine designed
 
 ---
 
-## Key Capabilities
+## Key Capabilities (v1.1.0)
 
-### 1. Collaborative Scholar Copilot (<kbd>Alt + C</kbd>)
-- Collapsible right-hand drawer providing conversational assistance beside your draft.
-- Real-time dual context awareness: reads your active draft and queries your Context Vault using BM25 relevance scoring.
-- In-chat provider/model switcher (DeepSeek, Gemini, Groq, Ollama) with academic prompt chips (*"Critique Draft"*, *"Find Counterarguments"*, *"Check Sources"*).
-- Direct 1-click actions on assistant responses: **Insert at Cursor**, **Append to Draft**, or **Copy Markdown**.
+### 1. Dual-Mode Manuscript Canvas & Selection Toolbar
+- Switch seamlessly between **Preview**, **Edit Canvas** (cursor-aware Markdown editor), and **Split Studio** (side-by-side live rendering).
+- **Inline Selection Action Bar:** Highlight any passage to run 1-click AI transformations grounded in your Vault: **Cite Claim**, **Expand with Vault**, **Academic Polish**, or **Ask Copilot**.
+- **Interactive Citation Provenance:** Click any inline `[Source: ...]` or `(Source: ...)` badge in rendered output to open the **Document Inspector Modal** pre-filtered to the cited primary source.
 
-### 2. Socratic Interactive Exam Simulator
-- In **Exam & Mastery Mode**, practice questions appear interactively below your generated paper.
-- Submit typed answers for instant AI grading out of 100 with rubric critiques, score breakdowns, and diagnostic feedback.
+### 2. Multi-Question Examination Session & 1-Turn Viva Voce Probe
+- In **Exam & Mastery Mode**, generated mock exams automatically populate an interactive **Question Queue (`Q1`..`QN` + `+ Custom`)**.
+- Track per-question score badges (`XX/100`) and real-time **Session Mastery** averages.
+- **1-Turn Viva Voce Follow-Up Probe:** Defend your reasoning against a targeted oral examiner follow-up challenge after initial grading.
 
-### 3. Modular Scholar Export Hub
-- **Student Mock Exam (Questions Only):** Automatically strips solutions and rubrics for closed-book, handwritten self-testing.
-- **Official Marking Scheme & Rubrics:** Point-by-point allocation schemes and exemplar model answers for grading.
+### 3. Research Workspaces, `.docx` Ingestion, & Portable Vault Snapshots
+- Organize separate courses, qualifying exams, or dissertation chapters into isolated **Research Workspaces** (Dexie IndexedDB `version(6)`).
+- **Zero-Dependency `.docx` Ingestion:** Drag and drop `.pdf`, `.docx`, `.md`, and `.txt` files directly into the Context Vault.
+- **Portable Vault Snapshots (`.scholar.json`):** Export and restore complete workspace backups (documents, BM25 chunks, draft history, and Copilot threads) in 1 click.
+
+### 4. Collaborative Scholar Copilot (<kbd>Alt + C</kbd>) & Grounded Paper Cards
+- Collapsible right-hand drawer with triple context awareness: active draft, Context Vault BM25 RAG, and live Open Scholarly Web Grounding (Crossref, arXiv, Semantic Scholar).
+- Structured **Academic Skills** (*Lit Discovery*, *Ground Citations*, *Counterarguments*, *Methodology Audit*) and interactive **Grounded Paper Cards** inside chat messages with 1-click **Save to Vault**.
+- Cursor-tracked **Insert at Cursor**, **Append to Draft**, or **Copy Markdown**.
+
+### 5. Modular Scholar Export Hub & BibTeX (`.bib`) Compiler
+- **BibTeX (`.bib`) & APA 7th Reference Compiler:** Export verified BibTeX entries (for LaTeX, Overleaf, and Zotero) or formatted APA 7th reference lists from grounded papers and Vault documents.
+- **Student Mock Exam (Questions Only):** Automatically strips solutions and rubrics for closed-book self-testing.
+- **Official Marking Scheme & Rubrics:** Point-by-point allocation schemes and exemplar model answers.
 - **Anki & Quizlet TSV Deck (`#separator:tab`):** Direct 1-click import into Anki or Quizlet.
-- **Examiner Evaluation Report:** Socratic examiner's mark out of 100, critiques, and remediation steps exported to PDF/MD/TXT.
+- **Examiner Evaluation Report:** Socratic examiner's mark out of 100, critiques, and Viva Voce defense transcript exported to PDF/MD/TXT.
 
-### 4. Client-Side BM25 RAG & Dynamic Token Management
-- Automatically splits documents into ~400-word chunks upon upload into IndexedDB.
-- **Adaptive Injection & Context Window Scaling:** Configurable context limits (4K to 1M tokens) per endpoint profile with automatic ~2,048 token generation headroom reservation on 8k models.
-- **Strict Evidentiary Grounding:** Toggle anti-hallucination mode to prevent non-Gemini models from providing implied or guessed answers, locking generation to vault citations and setting deterministic temperature (0.15).
-
-### 5. Universal AI Engine Hub & Custom Instructions
-- Connects to any OpenAI-compatible API (`/v1/chat/completions`) with presets for **DeepSeek**, **Groq Cloud**, **OpenRouter**, **Ollama Local**, **LM Studio**, and **OpenAI**.
-- Dedicated native **Google Gemini Direct SDK** (`@google/genai`) with live model discovery.
-- **Custom Instructions & Persona Editor:** Global and per-profile custom prompts for dissertation constraints, citation guidelines, and scholarly tone.
+### 6. Universal AI Engine Hub & Strict Evidentiary Grounding
+- Connects to any OpenAI-compatible API (`/v1/chat/completions`) with presets for **DeepSeek**, **Groq Cloud**, **OpenRouter**, **Ollama Local**, **LM Studio**, and **OpenAI**, plus native **Google Gemini Direct SDK** (`@google/genai`).
+- **Strict Evidentiary Grounding:** Anti-hallucination mode locking generation to verified Vault citations (`0.15` temperature).
 - Auto-detects keys from host system environment variables (`GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_HOST`).
-
-### 6. In-App Reference Manual & Keybindings (<kbd>F1</kbd>)
-- Dedicated tabbed help center modal covering quickstart, study modes, RAG engine, exports, and security.
 
 ---
 
@@ -63,8 +65,10 @@ A local-first, offline-capable academic research suite and study engine designed
 ## Documentation Links
 
 - 📚 **[GitHub Project Wiki](https://github.com/tomgee18/TomGees-Scholar-Studio/wiki):** Web-accessible knowledge base automatically synced with official guides and architecture specs.
-- 📖 **[User Guide & Manual](docs/USER_GUIDE.md):** In-depth workflows, prompt engineering, study modes, and Anki import walkthrough.
-- 🏛️ **[Technical Architecture](docs/ARCHITECTURE.md):** Tauri v2 IPC, BM25 RAG engine, database schemas, code-splitting, and security protocol.
+- 📖 **[User Guide & Manual](docs/USER_GUIDE.md):** In-depth workflows, Research Workspaces, Dual-Mode Canvas, Viva Voce defense, and BibTeX/Anki export walkthroughs.
+- 🏛️ **[Technical Architecture](docs/ARCHITECTURE.md):** Tauri v2 IPC, BM25 RAG engine, Dexie v6 workspace schema, client-side `.docx` parser, and security protocol.
+- 🗂️ **[Domain Glossary](GLOSSARY.md) & [ADR 0001](docs/adr/0001-local-first-workspace-isolation-and-snapshots.md):** Canonical ubiquitous language and architectural decision records.
+- 📋 **[Changelog](CHANGELOG.md):** Full release history (`v1.1.0`, `v1.0.0`).
 
 ---
 

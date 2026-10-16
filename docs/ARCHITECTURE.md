@@ -88,31 +88,38 @@ In desktop mode, the application runs inside a lightweight Webview2 window power
 
 ---
 
-## 3. Storage Architecture (Dexie IndexedDB)
+## 3. Storage Architecture (Dexie IndexedDB v6 & Workspace Isolation)
 
-All persistent application data is managed via Dexie.js inside the browser's IndexedDB engine:
+All persistent application data is managed via Dexie.js inside the browser's IndexedDB engine (see [ADR 0001](adr/0001-local-first-workspace-isolation-and-snapshots.md)):
 
 - **Database Name:** `TomGeesScholarDB`
-- **Current Version:** `4`
+- **Current Version:** `6`
 - **Schema Stores:**
-  - `documents`: `id, name, type, timestamp, enabled` (Full document text and metadata)
-  - `drafts`: `id, mode, timestamp, provider, model` (Full versioned history of study suites)
+  - `workspaces`: `id, name, createdAt, updatedAt` (Isolated project containers for courses, exams, or dissertations)
+  - `documents`: `id, name, type, timestamp, enabled, workspaceId` (Full document text and metadata for `.pdf`, `.docx`, `.md`, and `.txt`)
+  - `drafts`: `id, mode, timestamp, provider, model, workspaceId` (Versioned history of manuscripts and grounded papers)
   - `chunks`: `id, documentId, docName, chunkIndex` (Pre-split semantic chunks for BM25 retrieval)
-  - `chatMessages`: `id, conversationId, role, timestamp` (Multi-turn dialogue history for Scholar Copilot)
+  - `chatThreads`: `id, title, createdAt, updatedAt, workspaceId` (Workspace-scoped Scholar Copilot threads)
+  - `chatMessages`: `id, threadId, role, timestamp` (Multi-turn dialogue history and grounded paper cards)
+- **Portable Vault Snapshots (`.scholar.json`):** `exportVaultSnapshot()` and `importVaultSnapshot()` serialize and restore a workspace's complete relational subgraph (`workspace`, `documents`, `chunks`, `drafts`, `chatThreads`, `chatMessages`) inside a single Dexie transaction.
 
 ---
 
-## 4. Token Efficiency & Client-Side BM25 RAG
+## 4. Document Ingestion (`.pdf`, `.docx`, `.md`, `.txt`) & Client-Side BM25 RAG
 
-To handle massive reference corpuses while preventing context window blowouts, Scholar Studio implements a dual-tier adaptive context injection engine:
+To handle diverse academic file formats and large reference corpuses without server-side dependencies or context window blowouts:
 
-### A. Semantic Chunking
+### A. Zero-Dependency Client-Side `.docx` & `.pdf` Extraction (`lib/parsers/index.ts`)
+- **PDF Ingestion:** Uses bundled `pdfjs-dist` worker to extract page-by-page text offline.
+- **Word (`.docx`) Ingestion:** Traverses the ZIP Central Directory (`0x06054b50` EOCD signature and `0x02014b50` Central Directory headers) using standard Web `DataView`, decompresses `word/document.xml` via the native Web `DecompressionStream('deflate-raw')` API, and extracts `<w:p>`, `<w:t>`, `<w:tab/>`, and `<w:br/>` nodes into clean paragraph text.
+
+### B. Semantic Chunking
 Document text is divided into chunks using a sliding window algorithm:
 - **Chunk Size:** ~400 words
 - **Overlap:** 50 words to preserve inter-sentence semantic continuity
 - **Index:** Stored in `db.chunks` immediately upon document upload
 
-### B. BM25 Relevance Scoring
+### C. BM25 Relevance Scoring
 When context retrieval is triggered:
 ```typescript
 Score(D, Q) = ∑ IDF(q) * [ (f(q, D) * (k1 + 1)) / (f(q, D) + k1 * (1 - b + b * (|D| / avgdl))) ]

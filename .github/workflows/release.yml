@@ -18,10 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Rust stable
@@ -52,12 +52,13 @@ jobs:
           
           Get-Content dist-release\SHA256SUMS.txt
 
-      - name: Create Draft GitHub Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "TomGee's Scholar Studio ${{ github.ref_name }}"
-          draft: true
+          draft: false
           prerelease: false
+          body_path: docs/RELEASE_NOTES_${{ github.ref_name }}.md
           generate_release_notes: true
           files: |
             dist-release/*.exe

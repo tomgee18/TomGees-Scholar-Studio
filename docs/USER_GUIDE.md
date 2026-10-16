@@ -40,16 +40,25 @@ Scholar Studio does not require you to paste plaintext API keys into browser `lo
 
 ---
 
-## 3. The Context Vault & Document Ingestion
-The Context Vault (left sidebar) manages your reference library:
-- **Supported Formats:** `.pdf` (with full PDF.js text extraction), `.txt`, `.md`, and source files.
+## 3. Research Workspaces, Context Vault, & Document Ingestion
+The left sidebar manages your isolated **Research Workspaces** and **Context Vault**:
+- **Isolated Research Workspaces:** Create dedicated workspaces for individual university courses, qualifying exams, or dissertation chapters. Switching workspaces automatically scopes your active Context Vault documents, draft history, and Scholar Copilot threads.
+- **Portable Vault Snapshots (`.scholar.json`):** Click **Backup Snapshot** or **Restore Snapshot** in the sidebar footer to export or import an entire workspace (documents, BM25 chunks, draft history, and Copilot threads) as a portable `.scholar.json` archive.
+- **Supported Formats:** `.pdf` (full PDF.js text extraction), `.docx` (client-side ZIP/XML extraction), `.txt`, and `.md` files.
 - **Selective Grounding:** Use the toggle checkbox next to any document to include or exclude it from the active generation context without deleting it.
-- **Vault Inspector:** Click the search magnifying glass next to any file to inspect the raw parsed text, word count, and extracted chunks.
+- **Vault Inspector & Interactive Citation Provenance:** Click the magnifying glass next to any file—or click any inline `[Source: ...]` badge inside a generated manuscript—to inspect the raw parsed text, word count, and extracted chunks pre-filtered to your query.
 - **BM25 Semantic Retrieval:** If your vault exceeds 60% of the active model's context window, the BM25 retrieval engine automatically selects the top-15 most relevant semantic chunks (~400 words each) matching your directive.
 
 ---
 
-## 4. The 4 Scholarly Engine Modes
+## 4. The 4 Scholarly Engine Modes & Dual-Mode Manuscript Canvas
+
+### Dual-Mode Manuscript Canvas (Preview / Edit Canvas / Split Studio)
+Above the output canvas, use the **Mode Switcher Toolbar** to move smoothly between:
+- **Preview:** Rendered academic typography with clickable `[Source: ...]` provenance badges.
+- **Edit Canvas:** Direct cursor-tracked Markdown source editing. Place your cursor anywhere so Scholar Copilot's **Insert at Cursor** weaves paragraphs seamlessly.
+- **Split Studio:** Side-by-side Markdown editor and live rendered academic preview.
+- **Inline Selection Action Bar:** Highlight any claim or paragraph in the canvas to reveal 1-click AI transformations grounded in your Context Vault: **Cite Claim**, **Expand with Vault**, **Academic Polish**, and **Ask Copilot**.
 
 ### A. Exam & Mastery Mode
 Designed for doctoral qualifying exams, board examinations, and intensive university courses.
@@ -58,7 +67,7 @@ Designed for doctoral qualifying exams, board examinations, and intensive univer
   2. *10 High-Yield Exam Questions* with complete Marking Rubrics
   3. *Diagnostic Traps & Counter-Intuitive Edge Cases*
   4. *Anki Flashcard Deck* (`Question ::: Answer`)
-- **Interactive Integration:** Automatically boots the Socratic Quiz Panel directly beneath the generated study paper.
+- **Interactive Integration:** Automatically boots the Multi-Question Socratic Examination Session directly beneath the generated study paper.
 
 ### B. Thesis & Dissertation Mode
 Synthesizes graduate research following formal 5-chapter dissertation conventions:
@@ -78,15 +87,11 @@ Freeform academic prompting strictly grounded in your active Context Vault docum
 
 ---
 
-## 5. Interactive Socratic Exam Simulator
-When running in **Exam & Mastery Mode**, the interactive Socratic Grading Panel appears directly beneath your study paper:
-1. Review the generated practice questions.
-2. Type or paste your answers into the candidate response box.
-3. Click **Submit Answers for Socratic Grading**.
-4. The AI Examiner evaluates your submission against the rubric, generating:
-   - **Score out of 100**
-   - **Diagnostic Breakdown** (Conceptual strengths vs misconceptions)
-   - **Examiner's Formal Report** (Ready for export in the Export Hub)
+## 5. Multi-Question Examination Session & 1-Turn Viva Voce Probe
+When running in **Exam & Mastery Mode**, the interactive Socratic Examination Panel appears directly beneath your study paper:
+1. **Interactive Question Queue (`Q1`..`QN` + `+ Custom`):** Select any extracted exam question from the numbered pill queue or write a custom examination prompt.
+2. **Per-Question Grading & Session Mastery:** Type your candidate response and click **Submit Answer for Grading** to receive a score badge (`XX/100`), rubric evaluation, and updated **Session Mastery** average across all attempted questions.
+3. **1-Turn Viva Voce Follow-Up Probe:** After initial grading, click **Generate Viva Voce Probe** to face a targeted oral defense follow-up question probing a subtle boundary condition or unstated assumption in your answer, followed by a final **Viva Voce Defense Verdict**.
 
 ---
 
@@ -98,9 +103,10 @@ Open the Copilot sidebar by pressing <kbd>Alt + C</kbd> or clicking the **Copilo
   - `🔍 Ground Citations`: Scans claims and locates verified studies with authentic DOIs.
   - `🛡️ Counterarguments`: Uncovers dissenting empirical literature and critiques to fortify thesis defense.
   - `⚙️ Methodology Audit`: Catalogs established empirical designs, statistical frameworks, and benchmark datasets.
+- **Interactive Grounded Paper Cards:** Papers retrieved during Copilot turns appear as structured cards directly beneath the assistant message with 1-click **Save to Vault**.
 - **In-Chat Model Switcher:** Switch models (e.g. from DeepSeek to Gemini or Groq) in real-time.
 - **Direct Editor Actions:**
-  - `Insert at Cursor`: Pastes assistant response directly into the editor.
+  - `Insert at Cursor`: Weaves assistant response directly at your active cursor offset in the Manuscript Canvas.
   - `Append to Draft`: Appends text to the end of the document.
   - `Copy`: Copies formatted Markdown.
 
@@ -115,16 +121,17 @@ Scholar Studio features a zero-API-key open academic retrieval pipeline:
 
 ---
 
-## 8. Modular Export Hub & Rich-Text PDF Printing
+## 8. Modular Export Hub, BibTeX (`.bib`) Compiler, & Rich-Text PDF Printing
 Click **Export Hub** in the top bar to extract targeted deliverables:
 
 1. **Rich-Text Academic PDF:** Converts Markdown to semantic HTML typography (formal serif font, styled tables, code callouts, institutional header) and triggers the native Windows Print/PDF dialog without popup blockers.
-2. **Student Mock Exam (Questions Only):** Generates a clean question paper with ruled answer spaces, completely removing solutions and rubrics for self-testing.
-3. **Marking Scheme & Rubrics:** Isolates model solutions, key points, and grading weights for post-exam review.
-4. **Anki Flashcard TSV Deck (`#separator:tab`):** Formats flashcards for direct import into Anki:
+2. **BibTeX (`.bib`) & APA 7th Reference Compiler:** Compiles all grounded peer-reviewed papers and active Context Vault documents into a standard `.bib` bibliography (ready for LaTeX, Overleaf, and Zotero) or a formatted APA 7th Edition Markdown Reference List.
+3. **Student Mock Exam (Questions Only):** Generates a clean question paper with ruled answer spaces, completely removing solutions and rubrics for self-testing.
+4. **Marking Scheme & Rubrics:** Isolates model solutions, key points, and grading weights for post-exam review.
+5. **Anki Flashcard TSV Deck (`#separator:tab`):** Formats flashcards for direct import into Anki:
    - Open Anki → File → Import → select `.txt` / `.tsv` file.
    - Field 1 maps to Front, Field 2 maps to Back, Field 3 to Tags.
-5. **Examiner Diagnostic Report:** Exports Socratic grade breakdowns and examiner evaluations to PDF, Markdown, or text.
+6. **Examiner Diagnostic Report:** Exports Socratic grade breakdowns, Viva Voce defense evaluations, and examiner feedback to PDF, Markdown, or text.
 
 ---
 

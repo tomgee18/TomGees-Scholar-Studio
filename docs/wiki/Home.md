@@ -11,8 +11,10 @@
 
 ## 📚 Documentation Pages
 
-- 📖 **[[User-Guide]]**: Complete guide to all 4 scholarly modes, the Socratic Exam Simulator, Anki flashcard deck exports, context vault chunking, and prompt engineering.
-- 🏛️ **[[Architecture]]**: Comprehensive engineering specifications covering Tauri v2 IPC, client-side BM25 RAG, IndexedDB schemas, token headroom management, and Content Security Policy (CSP).
+- 📖 **[[User-Guide]]**: Complete guide to Research Workspaces, Dual-Mode Manuscript Canvas, Multi-Question Viva Voce Exam Simulator, BibTeX/Anki exports, and `.docx`/`.pdf` Vault ingestion.
+- 🏛️ **[[Architecture]]**: Comprehensive engineering specifications covering Tauri v2 IPC, client-side BM25 RAG, Dexie IndexedDB v6 workspace isolation, `.docx` ZIP/XML parsing, and CSP.
+- 🗂️ **[[Domain-Glossary]]**: Canonical ubiquitous language (`GLOSSARY.md`) defining core studio entities and invariants.
+- 📐 **[[ADR-0001-Workspace-Isolation]]**: Architectural Decision Record for local-first workspace isolation and portable `.scholar.json` Vault Snapshots.
 
 ---
 

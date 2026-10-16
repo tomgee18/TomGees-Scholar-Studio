@@ -2,6 +2,8 @@
 - [[Home]]
 - [[User-Guide]]
 - [[Architecture]]
+- [[Domain-Glossary]]
+- [[ADR-0001-Workspace-Isolation]]
 
 ---
 

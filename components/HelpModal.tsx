@@ -45,7 +45,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               <h2 className="text-base font-bold text-white tracking-wide flex items-center gap-2">
                 Scholar Studio Reference Manual
                 <span className="text-[10px] font-mono font-normal uppercase px-2 py-0.5 rounded bg-white/10 text-gray-300">
-                  v1.0 Production
+                  v1.1 Production
                 </span>
               </h2>
               <p className="text-xs text-gray-400">Complete guide to scholarly workflows, AI modes, and shortcuts</p>
